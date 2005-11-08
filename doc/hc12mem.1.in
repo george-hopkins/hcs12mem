@@ -1,0 +1,322 @@
+.TH "HC12MEM" 1 "" "hc12mem V@VERSION@" "User Commands"
+.SH NAME
+hc12mem \- Freescale HC12-family memory reader/writer
+.SH SYNOPSIS
+.B hc12mem
+[ option | filename ] ...
+.SH DESCRIPTION
+.B hc12mem
+is a tool for operating on Freescale HC12 MCU's internal memories
+(EEPROM and FLASH). It can:
+.PP
+- load any program into HC12 RAM and execute it
+.PD 0
+.PP
+- erase EEPROM
+.PP
+- read EEPROM
+.PP
+- write EEPROM
+.PP
+- set EEPROM protection
+.PP
+- erase FLASH
+.PP
+- read FLASH
+.PP
+- write FLASH
+.PP
+- secure MCU
+.PP
+- unsecure MCU
+.PD
+.SH OPTIONS
+.TP
+.B -h, --help
+Show usage info.
+.TP
+.B -v, --verbose
+Be verbose and show progress/status messages
+(this option is on by default).
+.TP
+.B -q, --quiet
+Be quiet (no progress/status messages).
+.TP
+.B -f, --force
+Force operation, if questionable.
+.TP
+.B -i <interface>, --interface <interface>
+Use given interface for target connection. Supported ones are:
+.IP
+.B bdm12pod
+- original Kevin Ross' BDM12 POD
+.PD 0
+.IP
+.B podex
+- PODEX with patched firmware
+.IP
+.B podex-bug
+- original Marek Duch' PODEX (with memory access bugs)
+.IP
+.B podex-25
+- special PODEX version dedicated for 25MHz target
+.PD
+.IP
+See more below in SUPPORTED INTERFACES section.
+.PD 0
+.IP
+This option is mandatory and must be specified exactly once.
+.PD
+.TP
+.B -p <port>, --port <port>
+Use given serial port for target connection. Port is a path to device special
+file, typically
+.I /dev/something
+.TP
+.B -b <bps>, --baud <bps>
+Use given baud rate for serial port connection. This is optional, and must
+correspond with target interface baud rate. Value is specified in bits-per-second,
+for example 115200, 9600, etc.
+.TP
+.B -t <target>, --target <target>
+Use given target description. Target description is a file with some key-value
+pairs, determining configuration.
+.I target
+can be specified in two ways: direct file name (this file is used as target
+description), or target nick name (target description file name is created by
+appending
+.I .doc
+to the
+.I target
+argument, then looked up in program's data directory).
+.IP
+For example,
+.B -t some_file_name.dat
+will treat this file as target description, and
+.B -t some_other_target
+will look for
+.I /usr/local/share/hc12mem/some_other_target.dat
+file, if that's where program data files are located.
+.TP
+.B -o <freq>, --osc <freq>
+Specify target device oscillator frequency.
+.I freq
+can be specified directly as value in Hz, or suffix [k|kHz|M|MHz] can be used,
+for example these all are equivalent: -o 8000000, -o 8000kHz, -o 8MHz
+.TP
+.B -j <addr>, --start-address <addr>
+Use this start address for program loaded into RAM, if this address is not
+specified by S-record file.
+.TP
+.B -a <type>, --flash-address <type>
+Use address type when reading/writing S-record file:
+.IP
+.B non-banked
+- FLASH linear area within 64kB, without banking
+.PD 0
+.IP
+.B banked-linear
+- Freescale banked linear format
+.IP
+.B banked-ppage
+- banked format with PPAGE value as MSB
+.PD
+.IP
+This selection refers to addresses within S-record file.
+.PD 0
+.IP
+When not specified,
+.B non-banked
+addressing is used.
+.PD
+.TP
+.B -e, --include-erased
+Include erased areas of memory in written S-record file
+(default is to skip 0xff blocks). Using this option, one gets S-record file
+with every byte defined to explicit value.
+.TP
+.B -s <size>, --srecord-size <size>
+Specify size of single S-record written to file, default: 16.
+.TP
+.B -V, --verify
+Verify result of all erase/write operations.
+.PP
+Following options can be specified multiple times, any of them,
+processing is according to occurence order:
+.TP
+.B -R, --reset <file>
+Reset target into normal mode.
+.TP
+.B -U, --unsecure
+Unsecure secured microcontroller. This means erasing EEPROM and FLASH
+memories as part of the process !
+.TP
+.B -S, --secure
+Secure the microcontroller. This means disabling access to EEPROM and FLASH
+memories, any further access requires unsecuring first.
+.TP
+.B -X <file>, --ram-run <file>
+Load S-record file into RAM and execute. Addresses of data to load must
+correspond to target MCU RAM area. Program is run from address supplied
+in apropriate S-record, it can be overriden using -j option.
+.TP
+.B -A, --eeprom-erase
+Erase internal MCU EEPROM memory.
+.TP
+.B -B <file>, --eeprom-read <file>
+Read internal MCU EEPROM memory contents into S-record
+.I file
+.TP
+.B -C <file>, --eeprom-write <file>
+Write internal MCU EEPROM memory contents from S-record
+.I file
+.TP
+.B -D <range>, --eeprom-protect <range>
+Write EEPROM protection byte, range can be one of the following:
+<all|64B|128B|192B|256B|320B|384B|448B|512B>
+.IP
+.B all
+- protects whole EEPROM array
+.PD 0
+.IP
+.B xxxB
+- protects last xxx bytes of EEPROM array
+.PD
+.TP
+.B -E, --flash-erase
+Erase entire FLASH memory, leave security byte in unprogrammed state (0xff)
+thus leaving whole MCU in secured state.
+.TP
+.B -F, --flash-erase-unsecure
+Erase entire FLASH memory, then program security byte to unsecured state.
+This leaves MCU in usecured state with FLASH memory in erased state, except
+security byte with value 0xfe.
+.TP
+.B -G <file>, --flash-read <file>
+Read FLASH memory contents into S-record file.
+.TP
+.B -H <file>, --eeprom-write <file>
+Write FLASH memory contents from S-record file.
+.SH "SUPPORTED INTERFACES"
+.PP
+Currently hc12mem supports only single POD type - Kevin Ross' BDM12 POD.
+It can be original one, or PODEX which is compatible with original BDM12
+POD serial protocol. POD type must be specified using -i option, valid
+arguments are:
+.IP
+.B bdm12pod
+- original Kevin Ross' BDM12 POD, see
+.I http://www.kevinro.com
+.IP
+.B podex-bug
+- original Marek Duch' PODEX, with memory access bugs, workaround for these
+significantly slow the communication down, see
+.I http://www.duch.cz/podex/
+.IP
+.B podex
+- PODEX with improved firmware, wih patches for memory access bugs found in
+original design; this version works exactly the same as original Kevin Ross'
+BDM12 POD, option
+.B -i podex
+is equivalent to
+.B -i bdm12pod
+For more details see
+.I http://cml.mfk.net.pl/podex
+.IP
+.B podex-25
+- special PODEX version dedicated for 25MHz target (expecially MC9S12NE64).
+This interface doesn't require specifying target oscillator frequency.
+For more details see
+.I http://cml.mfk.net.pl/podex
+.SH "EXAMPLES"
+.PP
+There are some common options that must be specified in most cases: interface
+type, serial port, target type, target oscillator frequency. In the following
+examples we specify: interface is PODEX, serial port for PODEX attachment
+is /dev/uart0, target is MC9S12A64 MCU operating at 16MHz.
+.B hc12mem
+call usually requires some more action commands to do something specific,
+but such call with these options only is convenient for verifying target
+communication - it initializes the target, displays all the info and quits:
+.RS
+.PP
+hc12mem -i podex -p /dev/uart0 -t mc9s12a64 -o 16MHz
+.RE
+.PP
+These options are required in every following call, so for clarity they are
+signalled by [-ipto] token, which must be substituted with the above full
+options set.
+.PP
+Unsecure secured microcontroller:
+.RS
+.PP
+hc12mem [-ipto] --unsecure
+.RE
+.PP
+Secure unsecured microcontroller:
+.RS
+.PP
+hc12mem [-ipto] --secure
+.RE
+.PP
+Load some code into target RAM and execute:
+.RS
+.PP
+hc12mem [-ipto] --ram-run some_code.s19
+.RE
+.PP
+Read EEPROM contents:
+.RS
+.PP
+hc12mem [-ipto] --eeprom-read eeprom_data.s19
+.RE
+.PP
+Set EEPROM protection:
+.RS
+.PP
+hc12mem [-ipto] --eeprom-protect all
+.RE
+.PP
+Read data from FLASH memory and write it to S-record file, use Freescale
+banked linear addresses, write all erased 0xff's to output file (default
+is to skip them):
+.RS
+.PP
+hc12mem [-ipto] -e --flash-address banked-linear --flash-read flash_data.s19
+.RE
+.PP
+Write data from S-record file to FLASH memory (non-banked flat addressing,
+option -a non-banked assumed by default):
+.RS
+.PP
+hc12mem [-ipto] --flash-write flash_data.s19
+.RE
+.PP
+Action options can be specified multiple times, they are executed in specified
+order, for example - erase FLASH, write program into FLASH and reset target,
+thus immediatelly starting program execution:
+.RS
+.PP
+hc12mem [-ipto] --flash-erase --flash-write program.s19 --reset
+.RE
+.SH "SEE ALSO"
+.PD 0
+.PP
+.I http://cml.mfk.net.pl/hc12mem
+- hc12mem web page
+.PP
+.I http://cml.mfk.net.pl/podex
+- improved PODEX web page
+.PP
+.I http://www.duch.cz/podex/
+- original PODEX web page
+.PP
+.I http://www.kevinro.com
+- Kevin Ross' BDM12 POD web page
+.PD
+.SH "COPYRIGHT"
+(C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+.PP
+hc12mem is free software, covered by the GNU General Public License.  You are
+welcome to change it and/or distribute copies of it under the conditions of
+the GNU General Public License.

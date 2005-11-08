@@ -1,0 +1,9 @@
+hc12mem 1.0 (2005.11.08)
+
+- first version released
+- support for Kevin Ross' BDM12 POD, Marek Duch' PODEX and my own
+  improved version of PODEX
+- supported targets: MC9S12A64, MC9S12NE64
+- tested under FreeBSD, GNU/linux and MS Windows
+
+$Id$

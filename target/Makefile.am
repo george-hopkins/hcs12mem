@@ -1,0 +1,33 @@
+# hc12mem - HC12 memory reader & writer
+# Makefile.am: automake Makefile template
+# $Id$
+#
+# Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+srcdir = @srcdir@
+VPATH = @srcdir@
+SUBDIRS = mc9s12a64_bdm mc9s12ne64_bdm
+
+pkgdata_DATA = mc9s12a64.dat mc9s12ne64.dat
+
+EXTRA_DIST = $(pkgdata_DATA) agent.h io.h \
+	io_mc9s12a64.h \
+	io_mc9s12ne64.h \
+	io_template.h
+
+MAINTAINERCLEANFILES = Makefile.in
+CLEANFILES = *~

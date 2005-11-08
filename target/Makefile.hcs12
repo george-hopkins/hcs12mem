@@ -1,0 +1,67 @@
+# hc12mem - HC12 memory reader & writer
+# Makefile.hcs12: rules for processing HCS12 files
+# $Id$
+#
+# Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+# target architecture
+
+ARCH = -m68hcs12 -mshort
+
+# executable names
+
+LD = m6811-elf-ld
+CC = m6811-elf-gcc
+AS = m6811-elf-as
+AR = m6811-elf-ar
+SIZE = m6811-elf-size
+OBJCOPY = m6811-elf-objcopy
+
+# flags
+
+ASFLAGS = $(ARCH) --short-branchs --strict-direct-mode
+CCFLAGS = $(ARCH) -ansi -Wall -pedantic -fsigned-char -g
+LDFLAGS = $(ARCH) -Wl,-m,m68hc12elfb -nostartfiles  -nodefaultlibs -g
+
+# objcopy section selection
+
+OBJCOPY_SECTIONS = \
+	--only-section=.text \
+	--only-section=.rodata \
+	--only-section=.vectors \
+	--only-section=.data
+
+# rules
+
+SUFFIXES = .o .elf .s19 .b
+
+%.o: $(srcdir)/%.s
+	$(AS) $(ASFLAGS) -o $@ $<
+%.o: $(srcdir)/%.S
+	$(CC) $(CCASFLAGS) -c -o $@ $<
+%.o: $(srcdir)/%.c
+	$(CC) $(CCFLAGS) -c -o $@ $<
+%.s: $(srcdir)/%.c
+	$(CC) $(CCFLAGS) -S -o $@ $<
+%.elf: %.o
+	$(CC) $(LDFLAGS) -o $@ $<
+%.elf: $(srcdir)/%.S
+	$(CC) $(CCFLAGS) $(LDFLAGS) -o $@ $<
+%.s19: %.elf
+	$(OBJCOPY) --output-target=srec $(OBJCOPY_SECTIONS) $< $@
+%.b: %.elf
+	$(OBJCOPY) --output-target=binary --gap-fill 0xff $(OBJCOPY_SECTIONS) $< $@

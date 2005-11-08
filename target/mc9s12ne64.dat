@@ -1,0 +1,42 @@
+# hc12mem - HC12 memory reader & writer
+# mc9s12ne64.dat: target description - single chip MC9S12NE64 MCU
+# $Id$
+#
+# Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+info single chip MC9S12NE64 MCU
+
+mcu MC9S12NE64
+family HCS12
+ppage_base 0x3c
+ppage_count 4
+eeprom_module NONE
+flash_module FTS64K
+flash_linear_size 0xc000
+flash_linear_base 0x4000
+
+## target ram_size is auto-detected, no need to override
+#ram_size 1024
+
+## only flash_write uses RAM agent
+bdm_flash_write agent
+
+bdm_startup_delay 100
+bdm_agent mc9s12ne64_bdm.s19
+
+## INITRM = 0x20
+bdm_init_byte 0x0010 0x20
