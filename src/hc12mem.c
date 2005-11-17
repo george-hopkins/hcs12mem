@@ -21,6 +21,7 @@
 */
 
 #include "hc12mem.h"
+#include "hc12mcu.h"
 #include "hc12lrae.h"
 #include "hc12bdm.h"
 
@@ -44,18 +45,17 @@ static const char *PRG_USAGE =
 #endif
 	"  -h, --help\n"
 	"      show usage info\n"
-	"  -v, --verbose\n"
-	"      be verbose and show progress/status messages (default)\n"
 	"  -q, --quiet\n"
 	"      be quiet (no progress/status messages)\n"
 	"  -f, --force\n"
 	"      force operation, if questionable\n"
 	"  -i <interface>, --interface <interface>\n"
 	"      use given interface for target connection, supported ones are:\n"
-	"      bdm12pod  - original Kevin Ross' BDM12 POD\n"
+	"      bdm12pod  - original Kevin Ross's BDM12 POD\n"
 	"      podex     - PODEX with patched firmware\n"
-	"      podex-bug - original Marek Duch' PODEX (with bugs)\n"
+	"      podex-bug - original Marek Peca's PODEX (with bugs)\n"
 	"      podex-25  - special PODEX version dedicated for 25MHz target\n"
+	"      lrae      - Freescale's serial LRAE bootloader\n"
 	"  -p <port>, --port <port>\n"
 	"      use given port for target connection\n"
 	"  -b <baud>, --baud <baud>\n"
@@ -77,7 +77,7 @@ static const char *PRG_USAGE =
 	"      (default is to skip 0xff blocks)\n"
 	"  -s <size>, --srecord-size <size>\n"
 	"      size of single S-record written to file, default: 16\n"
-	"  -V, --verify\n"
+	"  -v, --verify\n"
 	"      verify result of all erase/write operations\n"
 	"Following options can be specified multiple times, any of them,\n"
 	"processing is according to occurence order:\n"
@@ -107,7 +107,11 @@ static const char *PRG_USAGE =
 	"  -G <file>, --flash-read <file>\n"
 	"      read FLASH memory contents into S-record file\n"
 	"  -H <file>, --flash-write <file>\n"
-	"      write FLASH memory contents from S-record file\n";
+	"      write FLASH memory contents from S-record file\n"
+	"Special options for LRAE:\n"
+	"  -Z, --keep-lrae\n"
+	"      keep LRAE boot loader in FLASH memory when erasing FLASH\n"
+	"      memory (default is to erase it)\n";
 
 /* target connection handlers */
 
@@ -197,7 +201,7 @@ void progress_stop(unsigned long t, const char *title, uint32_t bytes)
 		       (unsigned int)bytes,
 		       (unsigned int)(t / 100),
 		       (unsigned int)(t % 100),
-		       (unsigned int)(bytes * 100 / t));
+		       (unsigned int)(t == 0 ? 0 : bytes * 100 / t));
 		fflush(stdout);
 	}
 }
@@ -497,12 +501,11 @@ int main(int argc, char *argv[])
 
 	/* valid options */
 
-	static const char *opt_string = "hvqdfi:p:b:c:t:o:j:a:es:VX:USAB:C:D:EFG:H:R";
+	static const char *opt_string = "hqdfi:p:b:c:t:o:j:a:es:vX:USAB:C:D:EFG:H:RZ";
 #if HAVE_GETOPT_LONG
 	static const struct option opt_long[] =
 	{
 		{ "help",           0, NULL, 'h' },
-		{ "verbose",        0, NULL, 'v' },
 		{ "quiet",          0, NULL, 'q' },
 		{ "debug",          0, NULL, 'd' },
 		{ "force",          0, NULL, 'f' },
@@ -529,6 +532,7 @@ int main(int argc, char *argv[])
 		{ "flash-erase-unsecure", 0, NULL, 'F' },
 		{ "flash-read",     1, NULL, 'G' },
 		{ "flash-write",    1, NULL, 'H' },
+		{ "keep-lrae",      0, NULL, 'Z' },
 		{ NULL, 0, NULL, 0 }
 	};
 #endif
@@ -571,6 +575,7 @@ int main(int argc, char *argv[])
 	options.srec_size = HC12MEM_DEFAULT_SREC_SIZE;
 	options.podex_25 = FALSE;
 	options.podex_mem_bug = FALSE;
+	options.keep_lrae = FALSE;
 
 	/* parse options */
 
@@ -607,11 +612,6 @@ int main(int argc, char *argv[])
 				fprintf(stderr, PRG_INFO, (const char *)VERSION);
 				fprintf(stderr, PRG_USAGE);
 				exit(EXIT_SUCCESS);
-
-			case 'v':
-				printf(PRG_INFO, (const char *)VERSION);
-				options.verbose = TRUE;
-				break;
 
 			case 'q':
 				options.verbose = FALSE;
@@ -703,7 +703,7 @@ int main(int argc, char *argv[])
 				}
 				break;
 
-			case 'V':
+			case 'v':
 				options.verify = TRUE;
 				break;
 
@@ -719,6 +719,10 @@ int main(int argc, char *argv[])
 			case 'F':
 			case 'G':
 			case 'H':
+				break;
+
+			case 'Z':
+				options.keep_lrae = TRUE;
 				break;
 
 			default:
@@ -786,11 +790,21 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
+	if (options.verbose)
+		printf(PRG_INFO, (const char *)VERSION);
+
 	/* read target info data */
 
 	ret = hc12mem_target_info_read();
 	if (ret != 0)
 		exit(EXIT_FAILURE);
+
+	ret = hc12mcu_target_parse();
+	if (ret != 0)
+	{
+		hc12mem_target_info_free();
+		exit(EXIT_FAILURE);
+	}
 
 	/* open target connection */
 

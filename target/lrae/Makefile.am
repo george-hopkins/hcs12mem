@@ -20,33 +20,12 @@
 
 srcdir = @srcdir@
 VPATH = @srcdir@
+SUBDIRS =
 
-AM_CFLAGS = -DHC12MEM_DATA_DIR=\"${pkgdatadir}\"
+include $(srcdir)/../Makefile.hcs12
 
-bin_PROGRAMS = hc12mem
-
-hc12mem_SOURCES = \
-	sys.c \
-	sys.h \
-	serial.c \
-	serial.h \
-	srec.c \
-	srec.h \
-	bdm12pod.c \
-	bdm12pod.h \
-	hc12bdm.c \
-	hc12bdm.h \
-	hc12lrae.c \
-	hc12lrae.h \
-	hc12mcu.c \
-	hc12mcu.h \
-	hc12mem.c \
-	hc12mem.h
-
-EXTRA_DIST = \
-	getopt_own.c \
-	getopt_own.h \
-	src.dsp
+pkgdata_DATA = lrae.s19
+EXTRA_DIST = memory.x lrae.S lrae.s19
 
 MAINTAINERCLEANFILES = Makefile.in
-CLEANFILES = *~
+CLEANFILES = *.o *.elf *.lst *.b *~

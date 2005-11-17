@@ -22,34 +22,20 @@ info single chip MC9S12A64 MCU
 
 mcu MC9S12A64
 family HCS12
-ppage_base 0x3c
-ppage_count 4
+ram_size 0x1000
 eeprom_module EETS1K
-#eeprom_size 0x0400
 flash_module FTS64K
-#flash_size 0x10000
-flash_linear_size 0xc000
-flash_linear_base 0x4000
 
-## target ram_size is auto-detected, no need to override
-#ram_size 1024
-
-## only flash_write uses RAM agent
-#bdm_eeprom_erase agent
-#bdm_eeprom_write agent
-#bdm_eeprom_read agent
-#bdm_flash_erase agent
-#bdm_flash_read agent
-bdm_flash_write agent
-
-bdm_startup_delay 100
-bdm_agent mc9s12a64_bdm.s19
-
-## INITRM = 0x30
+# INITRM = 0x30
 bdm_init_byte 0x0010 0x30
-## INITEE = 0x09
+# INITEE = 0x09
 bdm_init_byte 0x0012 0x09
 
-lrae_agent mc9s12a64_lrae.s19
-lrae_ram_base 0x3000
-lrae_ram_size 0x1000
+bdm_startup_delay 100
+bdm_agent bdm.s19
+
+# only BDM flash write uses RAM agent
+bdm_flash_write agent
+
+lrae_agent lrae.s19
+lrae_size 0x0200

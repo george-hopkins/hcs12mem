@@ -1,7 +1,21 @@
+hc12mem 1.1 (2005.11.17)
+
+- support for Freescale's LRAE (Load RAM And Execute) bootloader,
+  see Application Note AN2546 from Freescale.
+  LRAE currently can erase, read and write FLASH memory, with option to leave
+  or erase LRAE itself
+- support for much more chips - almost every HCS12 MCU is supported,
+  but not all are tested, though. Especially parts with multiple FLASH
+  blocks were not tested yet
+- resolved some problems with serial port timing under unix systems
+- changed option -V for --verify into -v
+- included S-record files for target loadable RAM agents, so no more
+  requirement for GNU gcc for hc11/12 for installation from sources
+
 hc12mem 1.0 (2005.11.08)
 
 - first version released
-- support for Kevin Ross' BDM12 POD, Marek Duch' PODEX and my own
+- support for Kevin Ross's BDM12 POD, Marek Peca's PODEX and my own
   improved version of PODEX
 - supported targets: MC9S12A64, MC9S12NE64
 - tested under FreeBSD, GNU/linux and MS Windows

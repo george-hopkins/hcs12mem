@@ -1607,7 +1607,7 @@ fi
 
 # Define the identity of the package.
  PACKAGE=hc12mem
- VERSION=1.0
+ VERSION=1.1
 
 
 cat >>confdefs.h <<_ACEOF
@@ -7110,7 +7110,7 @@ LIBS=$TARGET_LIBS
 
 
 
-                                                                      ac_config_files="$ac_config_files Makefile src/Makefile doc/Makefile doc/hc12mem.1 target/Makefile target/mc9s12a64_bdm/Makefile target/mc9s12ne64_bdm/Makefile"
+                                                                                ac_config_files="$ac_config_files Makefile src/Makefile test/Makefile doc/Makefile doc/hc12mem.1 target/Makefile target/bdm/Makefile target/lrae/Makefile"
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
 # tests run on this system so they can be shared between configure
@@ -7662,11 +7662,12 @@ do
   # Handling of arguments.
   "Makefile" ) CONFIG_FILES="$CONFIG_FILES Makefile" ;;
   "src/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/Makefile" ;;
+  "test/Makefile" ) CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
   "doc/Makefile" ) CONFIG_FILES="$CONFIG_FILES doc/Makefile" ;;
   "doc/hc12mem.1" ) CONFIG_FILES="$CONFIG_FILES doc/hc12mem.1" ;;
   "target/Makefile" ) CONFIG_FILES="$CONFIG_FILES target/Makefile" ;;
-  "target/mc9s12a64_bdm/Makefile" ) CONFIG_FILES="$CONFIG_FILES target/mc9s12a64_bdm/Makefile" ;;
-  "target/mc9s12ne64_bdm/Makefile" ) CONFIG_FILES="$CONFIG_FILES target/mc9s12ne64_bdm/Makefile" ;;
+  "target/bdm/Makefile" ) CONFIG_FILES="$CONFIG_FILES target/bdm/Makefile" ;;
+  "target/lrae/Makefile" ) CONFIG_FILES="$CONFIG_FILES target/lrae/Makefile" ;;
   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
   "config.h" ) CONFIG_HEADERS="$CONFIG_HEADERS config.h" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5

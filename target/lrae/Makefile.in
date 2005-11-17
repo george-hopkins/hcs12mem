@@ -34,11 +34,33 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
+# hc12mem - HC12 memory reader & writer
+# Makefile.hcs12: rules for processing HCS12 files
+# $Id$
+#
+# Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+# target architecture
+
 top_srcdir = @top_srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkglibdir = $(libdir)/@PACKAGE@
 pkgincludedir = $(includedir)/@PACKAGE@
-top_builddir = ..
+top_builddir = ../..
 am__cd = CDPATH="$${ZSH_VERSION+.}$(PATH_SEPARATOR)" && cd
 INSTALL = @INSTALL@
 install_sh_DATA = $(install_sh) -c -m 644
@@ -54,8 +76,9 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-subdir = target
-DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
+DIST_COMMON = $(srcdir)/../Makefile.hcs12 $(srcdir)/Makefile.am \
+	$(srcdir)/Makefile.in
+subdir = target/lrae
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
 	$(top_srcdir)/configure.ac
@@ -95,7 +118,7 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
-CC = @CC@
+CC = m6811-elf-gcc
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
 CPP = @CPP@
@@ -113,7 +136,7 @@ INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
-LDFLAGS = @LDFLAGS@
+LDFLAGS = $(ARCH) -Wl,-m,m68hc12elfb -nostartfiles  -nodefaultlibs -g
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LN_S = @LN_S@
@@ -168,48 +191,39 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
-SUBDIRS = bdm lrae
-pkgdata_DATA = \
-	mc9s12a32.dat \
-	mc9s12a64.dat \
-	mc9s12a128.dat \
-	mc9s12a256.dat \
-	mc9s12a512.dat \
-	mc9s12d32.dat \
-	mc9s12d64.dat \
-	mc9s12d128.dat \
-	mc9s12d256.dat \
-	mc9s12d512.dat \
-	mc9s12c32.dat \
-	mc9s12c64.dat \
-	mc9s12c96.dat \
-	mc9s12c128.dat \
-	mc9s12gc16.dat \
-	mc9s12gc32.dat \
-	mc9s12gc64.dat \
-	mc9s12gc96.dat \
-	mc9s12gc128.dat \
-	mc9s12e32.dat \
-	mc9s12e64.dat \
-	mc9s12e128.dat \
-	mc9s12e256.dat \
-	mc9s12h128.dat \
-	mc9s12h256.dat \
-	mc9s12ne64.dat \
-	mc9s12uf32.dat
+SUBDIRS = 
+ARCH = -m68hcs12 -mshort
 
-EXTRA_DIST = $(pkgdata_DATA) \
-	agent.h \
-	io.h \
-	io_mc9s12.h \
-	io_template.h
+# executable names
+LD = m6811-elf-ld
+AS = m6811-elf-as
+AR = m6811-elf-ar
+SIZE = m6811-elf-size
+OBJCOPY = m6811-elf-objcopy
 
+# flags
+ASFLAGS = $(ARCH) --short-branchs --strict-direct-mode
+CCFLAGS = $(ARCH) -ansi -Wall -pedantic -fsigned-char -g
+
+# objcopy section selection
+OBJCOPY_SECTIONS = \
+	--only-section=.text \
+	--only-section=.rodata \
+	--only-section=.vectors \
+	--only-section=.data
+
+
+# rules
+SUFFIXES = .o .elf .s19 .b
+pkgdata_DATA = lrae.s19
+EXTRA_DIST = memory.x lrae.S lrae.s19
 MAINTAINERCLEANFILES = Makefile.in
-CLEANFILES = *~
+CLEANFILES = *.o *.elf *.lst *.b *~
 all: all-recursive
 
 .SUFFIXES:
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
+.SUFFIXES: .o .elf .s19 .b
+$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(srcdir)/../Makefile.hcs12 $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -218,9 +232,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  target/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  target/lrae/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  target/Makefile
+	  $(AUTOMAKE) --gnu  target/lrae/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -390,6 +404,7 @@ distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 
 distdir: $(DISTFILES)
+	$(mkdir_p) $(distdir)/..
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
@@ -526,6 +541,23 @@ uninstall-info: uninstall-info-recursive
 	pdf-am ps ps-am tags tags-recursive uninstall uninstall-am \
 	uninstall-info-am uninstall-pkgdataDATA
 
+
+%.o: $(srcdir)/%.s
+	$(AS) $(ASFLAGS) -o $@ $<
+%.o: $(srcdir)/%.S
+	$(CC) $(CCASFLAGS) -c -o $@ $<
+%.o: $(srcdir)/%.c
+	$(CC) $(CCFLAGS) -c -o $@ $<
+%.s: $(srcdir)/%.c
+	$(CC) $(CCFLAGS) -S -o $@ $<
+%.elf: %.o
+	$(CC) $(LDFLAGS) -o $@ $<
+%.elf: $(srcdir)/%.S
+	$(CC) $(CCFLAGS) $(LDFLAGS) -o $@ $<
+%.s19: %.elf
+	$(OBJCOPY) --output-target=srec $(OBJCOPY_SECTIONS) $< $@
+%.b: %.elf
+	$(OBJCOPY) --output-target=binary --gap-fill 0xff $(OBJCOPY_SECTIONS) $< $@
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

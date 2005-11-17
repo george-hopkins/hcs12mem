@@ -108,8 +108,8 @@ int serial_open(serial_t *s, const char *path);
 int serial_close(serial_t *s);
 int serial_get_cfg(serial_t *s, serial_cfg_t *cfg);
 int serial_set_cfg(serial_t *s, const serial_cfg_t *cfg);
-int serial_read(serial_t *s, void *data, size_t size, unsigned long timeout);
-int serial_write(serial_t *s, const void *data, size_t size, unsigned long timeout);
+int serial_read(serial_t *s, void *data, size_t *size, unsigned long timeout);
+int serial_write(serial_t *s, const void *data, size_t *size, unsigned long timeout);
 int serial_flush(serial_t *s);
 int serial_control(serial_t *s, serial_control_t c, int *state);
 

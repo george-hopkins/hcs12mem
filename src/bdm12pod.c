@@ -50,6 +50,7 @@ static int bdm12pod_tx(const uint8_t *data, size_t len)
 	unsigned long now;
 	int cnt;
 	int ret;
+	size_t size;
 
 	for (i = 0; i < len; ++i)
 	{
@@ -82,7 +83,8 @@ static int bdm12pod_tx(const uint8_t *data, size_t len)
 			return EIO;
 		}
 
-		ret = serial_write(&bdm12pod_serial, &data[i], 1, BDM12POD_TX_TIMEOUT);
+		size = 1;
+		ret = serial_write(&bdm12pod_serial, &data[i], &size, BDM12POD_TX_TIMEOUT);
 		if (ret != 0)
 			return ret;
 
@@ -137,20 +139,26 @@ static int bdm12pod_dialog(const uint8_t *dtx, size_t ntx,
 {
 	size_t i;
 	int ret;
+	size_t size;
 
 	ret = bdm12pod_tx(dtx, ntx);
 	if (ret != 0)
 		return ret;
 
 #if 0
-	ret = serial_read(&bdm12pod_serial, drx, nrx,
-		BDM12POD_RX_TIMEOUT);
+	ret = serial_read(&bdm12pod_serial, drx, &nrx, BDM12POD_RX_TIMEOUT);
+	if (ret == ETIMEDOUT)
+	{
+		error("connection timed out\n");
+		return ret;
+	}
 	if (ret != 0)
 		return ret;
 #else
 	for (i = 0; i < nrx; ++ i)
 	{
-		ret = serial_read(&bdm12pod_serial, &drx[i], 1, BDM12POD_RX_TIMEOUT);
+		size = 1;
+		ret = serial_read(&bdm12pod_serial, &drx[i], &size, BDM12POD_RX_TIMEOUT);
 		if (ret == ETIMEDOUT)
 		{
 			error("connection timed out\n");

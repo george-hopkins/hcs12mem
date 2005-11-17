@@ -22,21 +22,15 @@ info single chip MC9S12NE64 MCU
 
 mcu MC9S12NE64
 family HCS12
-ppage_base 0x3c
-ppage_count 4
+ram_size 0x2000
 eeprom_module NONE
 flash_module FTS64K
-flash_linear_size 0xc000
-flash_linear_base 0x4000
 
-## target ram_size is auto-detected, no need to override
-#ram_size 1024
-
-## only flash_write uses RAM agent
-bdm_flash_write agent
+# INITRM = 0x20
+bdm_init_byte 0x0010 0x20
 
 bdm_startup_delay 100
-bdm_agent mc9s12ne64_bdm.s19
+bdm_agent bdm.s19
 
-## INITRM = 0x20
-bdm_init_byte 0x0010 0x20
+# only BDM flash write uses RAM agent
+bdm_flash_write agent

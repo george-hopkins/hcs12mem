@@ -338,6 +338,73 @@ int serial_set_cfg(serial_t *s, const serial_cfg_t *cfg)
 
 
 /*
+ *  update timeout
+ */
+
+static int serial_timeout(struct timeval *start, unsigned long *to, struct timeval *sto)
+{
+	struct timeval t;
+	long diff;
+
+	if (start->tv_sec == 0)
+	{
+		/* get operation start time */
+
+		gettimeofday(start, NULL);
+	}
+	else
+	{
+		/* get current time in the middle of the operation */
+
+	  	back:
+		gettimeofday(&t, NULL);
+
+		/* if time went back, restart timeout counting */
+
+		if (t.tv_sec < start->tv_sec || (t.tv_sec == start->tv_sec && t.tv_usec < start->tv_usec))
+		{
+			gettimeofday(start, NULL);
+			goto back;
+		}
+
+		/* calculate time difference (now - start) */
+
+		if (t.tv_sec == start->tv_sec)
+			diff = (t.tv_usec - start->tv_usec) / (long)1000;
+		else
+		{
+			if (t.tv_usec >= start->tv_usec)
+			{
+				diff = (t.tv_usec - start->tv_usec) / (long)1000;
+				diff += (t.tv_sec - start->tv_sec) * (long)1000;
+			}
+			else
+			{
+				diff = ((long)1000000 + t.tv_usec - start->tv_usec) / (long)1000;
+				diff += (t.tv_sec - start->tv_sec - (long)1) * (long)1000;
+			}
+		}
+
+		/* if time has elapsed, this is timeout */
+
+		if ((unsigned long)diff >= *to)
+			return TRUE;
+
+		/* update timeout with already passed time */
+
+		*to =- (unsigned long)diff;
+	}
+
+	/* calculate timeout for select function */
+
+	sto->tv_sec = (long)(*to / 1000);
+	sto->tv_usec = (long)(*to % 1000) * 1000UL;
+
+	return FALSE;
+}
+
+
+/*
  *  read from serial port
  *
  *  in:
@@ -349,30 +416,57 @@ int serial_set_cfg(serial_t *s, const serial_cfg_t *cfg)
  *    status code (errno-like)
  */
 
-int serial_read(serial_t *s, void *data, size_t size, unsigned long timeout)
+int serial_read(serial_t *s, void *data, size_t *size, unsigned long timeout)
 {
-	struct timeval time;
-	fd_set fd;
+	size_t n;
+	unsigned char *ptr;
+	struct timeval start;
+	struct timeval sto;
+	fd_set fdset;
 	int ret;
 
-	time.tv_sec = (long)(timeout / 1000);
-	time.tv_usec = (long)(timeout % 1000) * 1000UL;
-	FD_ZERO(&fd);
-	FD_SET(s->tty, &fd);
+	n = *size;
+	*size = 0;
+	ptr = (unsigned char *)data;
 
-	ret = select(s->tty + 1, &fd, (fd_set *)NULL, (fd_set *)NULL, &time);
-	if (ret == 0)
-		return ETIMEDOUT;
-	else
+	timerclear(&start);
+	while (*size < n)
 	{
-		if (read(s->tty, data, size) == -1)
+		if (timeout != 0xffffffff)
 		{
+			if (serial_timeout(&start, &timeout, &sto))
+				return ETIMEDOUT;
+
+			/* check file descriptor */
+
+			FD_ZERO(&fdset);
+			FD_SET(s->tty, &fdset);
+			ret = select(s->tty + 1, &fdset, (fd_set *)NULL, (fd_set *)NULL, &sto);
+			if (ret == 0)
+				return ETIMEDOUT;
+			if (ret == -1)
+			{
+				if (errno == EINTR || errno == EAGAIN)
+					continue;
+				goto error;
+			}
+		}
+
+		ret = (int)read(s->tty, ptr, n - *size);
+		if (ret == -1)
+		{
+			if (errno == EINTR || errno == EAGAIN)
+				continue;
+		  error:
 			ret = errno;
 			error("unable to read %s (%s)\n",
 			      (const char *)s->path,
 			      (const char *)strerror(ret));
 			return ret;
 		}
+
+		*size += (size_t)ret;
+		ptr += ret;
 	}
 
 	return 0;
@@ -393,23 +487,60 @@ int serial_read(serial_t *s, void *data, size_t size, unsigned long timeout)
  *    status code (errno-like)
  */
 
-int serial_write(serial_t *s, const void *data, size_t size, unsigned long timeout)
+int serial_write(serial_t *s, const void *data, size_t *size, unsigned long timeout)
 {
+	size_t n;
+	const unsigned char *ptr;
+	struct timeval start;
+	struct timeval sto;
+	fd_set fdset;
 	int ret;
 
-	if (size == 0)
-		return 0;
+	n = *size;
+	*size = 0;
+	ptr = (const unsigned char *)data;
 
-	start:
-	if (write(s->tty, data, size) == -1)
+	if (timeout == 0)
+		return EINVAL;
+
+	timerclear(&start);
+	while (*size < n)
 	{
-		ret = errno;
-		if (ret == EAGAIN)
-			goto start;
-		error("unable to write %s (%s)\n",
-		      (const char *)s->path,
-		      (const char *)strerror(ret));
-		return ret;
+		if (timeout != 0xffffffff)
+		{
+			if (serial_timeout(&start, &timeout, &sto))
+				return ETIMEDOUT;
+
+ 			/* check file descriptor */
+
+			FD_ZERO(&fdset);
+			FD_SET(s->tty, &fdset);
+			ret = select(s->tty + 1, (fd_set *)NULL, &fdset, (fd_set *)NULL, &sto);
+			if (ret == 0)
+				return ETIMEDOUT;
+			if (ret == -1)
+			{
+				if (errno == EINTR || errno == EAGAIN)
+					continue;
+				goto error;
+			}
+		}
+
+		ret = (int)write(s->tty, ptr, n - *size);
+		if (ret == -1)
+		{
+			if (errno == EINTR || errno == EAGAIN)
+				continue;
+		  error:
+			ret = errno;
+			error("unable to write %s (%s)\n",
+			      (const char *)s->path,
+			      (const char *)strerror(ret));
+			return ret;
+		}
+
+		*size += (size_t)ret;
+		ptr += ret;
 	}
 
 	return 0;
@@ -950,7 +1081,7 @@ static int serial_set_timeout(serial_t *s, DWORD rd, DWORD wr)
  *    status code (errno-like)
  */
 
-int serial_read(serial_t *s, void *data, size_t size, unsigned long timeout)
+int serial_read(serial_t *s, void *data, size_t *size, unsigned long timeout)
 {
 	OVERLAPPED o;
 	DWORD n;
@@ -964,15 +1095,14 @@ int serial_read(serial_t *s, void *data, size_t size, unsigned long timeout)
 	o.Offset = 0;
 	o.OffsetHigh = 0;
 
-	if (!ReadFile(s->port_handle, data, (DWORD)size, &n, &o))
+	if (!ReadFile(s->port_handle, data, (DWORD)(*size), &n, &o))
 	{
 		n = GetLastError();
 		if (n == ERROR_IO_PENDING)
 		{
 			if (!GetOverlappedResult(s->port_handle, &o, &n, TRUE))
 				goto ret_error;
-
-			if ((size_t)n != size)
+			if ((size_t)n != *size)
 				return ERROR_TIMEOUT;
 		}
 		else
@@ -1002,7 +1132,7 @@ int serial_read(serial_t *s, void *data, size_t size, unsigned long timeout)
  *    status code (errno-like)
  */
 
-int serial_write(serial_t *s, const void *data, size_t size, unsigned long timeout)
+int serial_write(serial_t *s, const void *data, size_t *size, unsigned long timeout)
 {
 	OVERLAPPED o;
 	DWORD n;
@@ -1016,14 +1146,14 @@ int serial_write(serial_t *s, const void *data, size_t size, unsigned long timeo
 	o.Offset = 0;
 	o.OffsetHigh = 0;
 
-	if (!WriteFile(s->port_handle, data, (DWORD)size, &n, &o))
+	if (!WriteFile(s->port_handle, data, (DWORD)(*size), &n, &o))
 	{
 		n = GetLastError();
 		if (n == ERROR_IO_PENDING)
 		{
 			if (!GetOverlappedResult(s->port_handle, &o, &n, TRUE))
 				goto ret_error;
-			if ((size_t)n != size)
+			if ((size_t)n != *size)
 				return ERROR_TIMEOUT;
 		}
 		else

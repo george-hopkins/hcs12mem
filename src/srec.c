@@ -278,7 +278,7 @@ int srec_read(const char *file, char *info, size_t info_len,
 			case SREC_TYPE_A24_END:
 			case SREC_TYPE_A32_END:
 				addr_low = (*atc)(addr);
-				if (addr_low >= (uint32_t)buf_len)
+				if (addr != 0 && addr_low >= (uint32_t)buf_len)
 				{
 					error("entry address out of range (line #%u)\n",
 					      (unsigned int)line);

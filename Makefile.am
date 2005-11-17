@@ -20,7 +20,7 @@
 
 srcdir = @srcdir@
 VPATH = @srcdir@
-SUBDIRS = src target doc
+SUBDIRS = src test target doc
 
 EXTRA_DIST = \
 	autogen \
@@ -41,3 +41,13 @@ MAINTAINERCLEANFILES = \
 	stamp-h1
 
 CLEANFILES = *~
+
+dist-win32:
+	rm -f $(PACKAGE)-$(VERSION).zip
+	zip -j $(PACKAGE)-$(VERSION).zip \
+		AUTHORS COPYING NEWS README \
+		out.win32/release/hc12mem.exe \
+		target/*.dat \
+		target/bdm/bdm.s19 \
+		target/lrae/lrae.s19 \
+		doc/hc12mem.html

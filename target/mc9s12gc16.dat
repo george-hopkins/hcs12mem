@@ -1,5 +1,5 @@
 # hc12mem - HC12 memory reader & writer
-# Makefile.am: automake Makefile template
+# mc9s12gc16.dat: target description - single chip MC9S12GC16 MCU
 # $Id$
 #
 # Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
@@ -18,35 +18,19 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-srcdir = @srcdir@
-VPATH = @srcdir@
+info single chip MC9S12GC16 MCU
 
-AM_CFLAGS = -DHC12MEM_DATA_DIR=\"${pkgdatadir}\"
+mcu MC9S12GC16
+family HCS12
+ram_size 0x0400
+eeprom_module NONE
+flash_module FTS16K
 
-bin_PROGRAMS = hc12mem
+# INITRM = 0x3f
+bdm_init_byte 0x0010 0x3f
 
-hc12mem_SOURCES = \
-	sys.c \
-	sys.h \
-	serial.c \
-	serial.h \
-	srec.c \
-	srec.h \
-	bdm12pod.c \
-	bdm12pod.h \
-	hc12bdm.c \
-	hc12bdm.h \
-	hc12lrae.c \
-	hc12lrae.h \
-	hc12mcu.c \
-	hc12mcu.h \
-	hc12mem.c \
-	hc12mem.h
+bdm_startup_delay 100
+bdm_agent bdm.s19
 
-EXTRA_DIST = \
-	getopt_own.c \
-	getopt_own.h \
-	src.dsp
-
-MAINTAINERCLEANFILES = Makefile.in
-CLEANFILES = *~
+# only BDM flash write uses RAM agent
+bdm_flash_write agent

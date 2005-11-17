@@ -21,6 +21,7 @@
  */
 
 #include "hc12mem.h"
+#include "hc12mcu.h"
 #include "hc12lrae.h"
 #include "hc12bdm.h"
 #include "serial.h"
@@ -31,8 +32,8 @@
 /* globals */
 
 static serial_t hc12lrae_serial;
+static uint32_t hc12lrae_flash_size;
 static uint32_t hc12lrae_ram_base;
-static uint32_t hc12lrae_ram_size;
 static int hc12lrae_agent_loaded;
 
 static const unsigned long hc12lrae_baud_table[] =
@@ -159,8 +160,23 @@ static int hc12lrae_open(void)
 {
 	serial_cfg_t cfg;
 	uint8_t b;
+	size_t size;
 	int i;
 	int ret;
+
+	if (hc12mem_target_info("lrae_agent", TRUE) == NULL)
+	{
+		error("target LRAE RAM agent not available, cannot proceed\n");
+		return EINVAL;
+	}
+
+	if (hc12mem_target_param("lrae_size", &hc12lrae_flash_size, 0) != 0)
+		return EINVAL;
+	if (hc12lrae_flash_size == 0)
+	{
+		error("target LRAE FLASH usage unknown (missing lrae_size)\n");
+		return EINVAL;
+	}
 
 	if (options.port == NULL)
 	{
@@ -171,16 +187,6 @@ static int hc12lrae_open(void)
 	if (options.osc == 0)
 	{
 		error("oscillator frequency not specified (-o option required)\n");
-		return EINVAL;
-	}
-
-	if (hc12mem_target_param("lrae_ram_base", &hc12lrae_ram_base, 0xffffffff) != 0)
-		return EINVAL;
-	if (hc12mem_target_param("lrae_ram_size", &hc12lrae_ram_size, 0) != 0)
-		return EINVAL;
-	if (hc12lrae_ram_base == 0xffffffff || hc12lrae_ram_size == 0)
-	{
-		error("unknown target RAM address and size for LRAE operation\n");
 		return EINVAL;
 	}
 
@@ -218,14 +224,16 @@ static int hc12lrae_open(void)
 	for (i = 0; i < HC12LRAE_SYNC_RETRIES; ++ i)
 	{
 		b = HC12LRAE_SYNC_MSG;
-		ret = serial_write(&hc12lrae_serial, &b, 1, HC12LRAE_TX_TIMEOUT);
+		size = 1;
+		ret = serial_write(&hc12lrae_serial, &b, &size, HC12LRAE_TX_TIMEOUT);
 		if (ret != 0)
 		{
 			serial_close(&hc12lrae_serial);
 			return ret;
 		}
 
-		ret = serial_read(&hc12lrae_serial, &b, 1, HC12LRAE_SYNC_TIMEOUT);
+		size = 1;
+		ret = serial_read(&hc12lrae_serial, &b, &size, HC12LRAE_SYNC_TIMEOUT);
 		if (ret == ETIMEDOUT)
 			continue;
 		if (ret != 0)
@@ -248,6 +256,26 @@ static int hc12lrae_open(void)
 	if (options.verbose)
 		printf("LRAE target synchronized\n");
 
+	if (options.verbose)
+	{
+		printf("target info <%s>\n"
+		       "target mcu <%s> family <%s> osc <%lu.%06lu MHz>\n",
+		       (const char *)hc12mcu_target.info_str,
+		       (const char *)hc12mcu_target.mcu_str,
+		       (const char *)hc12mcu_target.family_str,
+		       (unsigned long)(options.osc / 1000000),
+		       (unsigned long)(options.osc % 1000000));
+	}
+
+	hc12lrae_ram_base = HC12LRAE_RAM_END + 1 - hc12mcu_target.ram_size;
+	if (options.verbose)
+	{
+		printf("target LRAE RAM area <0x%04x-0x%04x> size <0x%04x>\n",
+		       (unsigned int)hc12lrae_ram_base,
+		       (unsigned int)HC12LRAE_RAM_TOP,
+		       (unsigned int)(HC12LRAE_RAM_TOP - hc12lrae_ram_base + 1));
+	}
+
 	hc12lrae_agent_loaded = FALSE;
 
 	return 0;
@@ -269,14 +297,33 @@ static int hc12lrae_close(void)
 }
 
 
+/*
+ *  RAM address translation (for reading S-record file)
+ *
+ *  in:
+ *    addr - address to translate
+ *  out:
+ *    translated address
+ */
+
 static uint32_t hc12lrae_ram_address(uint32_t addr)
 {
 	if (addr < hc12lrae_ram_base ||
-	    addr >= hc12lrae_ram_base + hc12lrae_ram_size)
-		return hc12lrae_ram_size; /* out of range value as error mark */
+	    addr >= hc12lrae_ram_base + hc12mcu_target.ram_size)
+		return hc12mcu_target.ram_size; /* out of range value as error mark */
 	return addr - hc12lrae_ram_base;
 }
 
+
+/*
+ *  load data into RAM target
+ *
+ *  in:
+ *    file - data file name to read
+ *    agent - flag when loading target RAM agent
+ *  out:
+ *    status code (errno-like)
+ */
 
 static int hc12lrae_ram_load(const char *file, int agent)
 {
@@ -292,23 +339,24 @@ static int hc12lrae_ram_load(const char *file, int agent)
 	uint32_t len;
 	uint32_t i;
 	unsigned long t;
+	size_t size;
 
-	buf = malloc(hc12lrae_ram_size);
+	buf = malloc(hc12mcu_target.ram_size);
 	if (buf == NULL)
 	{
 		error("not enough memory\n");
 		return ENOMEM;
 	}
 
-	entry = 0xffffffff;
-
-	if (!agent && options.verbose)
+	if (options.verbose)
 	{
-		printf("RAM image file <%s>\n",
+		printf("RAM load: %s file <%s>\n",
+		       (const char *)(agent ? "agent" : "image"),
 		       (const char *)file);
 	}
 
-	ret = srec_read(file, info, sizeof(info), buf, hc12lrae_ram_size,
+	entry = 0xffffffff;
+	ret = srec_read(file, info, sizeof(info), buf, hc12mcu_target.ram_size,
 		&entry, &addr_min, &addr_max, hc12lrae_ram_address);
 	if (ret != 0)
 	{
@@ -330,33 +378,56 @@ static int hc12lrae_ram_load(const char *file, int agent)
 
 	if (options.verbose)
 	{
-		printf("RAM %s info <%s> address range <0x%04x-0x%04x> length <0x%04x> start <0x%04x>\n",
-		       (const char *)(agent ? "agent" : "image"),
-		       (const char *)info,
-		       (unsigned int)addr_min,
-		       (unsigned int)addr_max,
-		       (unsigned int)len,
-		       (unsigned int)entry);
+		if (agent)
+		{
+			printf("RAM load: address range <0x%04x-0x%04x> length <0x%04x> start <0x%04x>\n",
+			       (unsigned int)addr_min,
+			       (unsigned int)addr_max,
+			       (unsigned int)len,
+			       (unsigned int)entry);
+		}
+		else
+		{
+			printf("RAM load: image info <%s>\n"
+			       "RAM load: address range <0x%04x-0x%04x> length <0x%04x> start <0x%04x>\n",
+			       (const char *)info,
+			       (unsigned int)addr_min,
+			       (unsigned int)addr_max,
+			       (unsigned int)len,
+			       (unsigned int)entry);
+		}
+	}
+
+	if ((addr_min < hc12lrae_ram_base || addr_min > HC12LRAE_RAM_TOP) ||
+	    (addr_max < hc12lrae_ram_base || addr_max > HC12LRAE_RAM_TOP))
+	{
+		if (!options.force)
+		{
+			error("RAM address outside allowable range\n");
+			return EINVAL;
+		}
 	}
 
 	uint16_host2be_buf(h + 0, (uint16_t)entry);
 	uint16_host2be_buf(h + 2, (uint16_t)len);
 	sum = h[0] + h[1] + h[2] + h[3];
 
-	ret = serial_write(&hc12lrae_serial, h, sizeof(h), HC12LRAE_TX_TIMEOUT);
+	size = sizeof(h);
+	ret = serial_write(&hc12lrae_serial, h, &size, HC12LRAE_TX_TIMEOUT);
 	if (ret != 0)
 	{
 		free(buf);
 		return ret;
 	}
 
-	t = progress_start(agent ? "RAM agent upload" : "RAM image upload");
+	t = progress_start("RAM load: data");
 	for (i = 0; i < len; ++ i)
 	{
 		b = buf[addr_min - hc12lrae_ram_base + i];
 		sum += b;
 
-		ret = serial_write(&hc12lrae_serial, &b, 1, HC12LRAE_TX_TIMEOUT);
+		size = 1;
+		ret = serial_write(&hc12lrae_serial, &b, &size, HC12LRAE_TX_TIMEOUT);
 		if (ret != 0)
 		{
 			progress_stop(t, NULL, 0);
@@ -370,11 +441,13 @@ static int hc12lrae_ram_load(const char *file, int agent)
 
 	free(buf);
 
-	ret = serial_write(&hc12lrae_serial, &sum, 1, HC12LRAE_TX_TIMEOUT);
+	size = 1;
+	ret = serial_write(&hc12lrae_serial, &sum, &size, HC12LRAE_TX_TIMEOUT);
 	if (ret != 0)
 		return ret;
 
-	ret = serial_read(&hc12lrae_serial, &b, 1, HC12LRAE_CHECKSUM_TIMEOUT);
+	size = 1;
+	ret = serial_read(&hc12lrae_serial, &b, &size, HC12LRAE_CHECKSUM_TIMEOUT);
 	if (ret == ETIMEDOUT)
 	{
 		error("checksum acknowledge reception timed out\n"
@@ -394,6 +467,15 @@ static int hc12lrae_ram_load(const char *file, int agent)
 }
 
 
+/*
+ *  load code and run from target RAM
+ *
+ *  in:
+ *    file - data file name to read
+ *  out:
+ *    status code (errno-like)
+ */
+
 static int hc12lrae_ram_run(const char *file)
 {
 	int ret;
@@ -403,37 +485,45 @@ static int hc12lrae_ram_run(const char *file)
 		return ret;
 
 	if (options.verbose)
-		printf("RAM image loaded and started\n");
+		printf("RAM run: image loaded and started\n");
 
 	return 0;
 }
 
 
-static int hc12lrae_unsecure(void)
-{
-	error("unsecure: operation not supported\n");
-	return EINVAL;
-}
-
-
-static int hc12lrae_secure(void)
-{
-	error("secure: operation not supported\n");
-	return EINVAL;
-}
-
+/*
+ *  send data to target
+ *
+ *  in:
+ *    buf - data buffer
+ *    len - data length
+ *  out:
+ *    status code (errno-like)
+ */
 
 static int hc12lrae_tx(const void *buf, size_t len)
 {
-	return serial_write(&hc12lrae_serial, buf, len, (unsigned long)(len * HC12LRAE_TX_TIMEOUT));
+	return serial_write(&hc12lrae_serial, buf, &len,
+		(unsigned long)(len * HC12LRAE_TX_TIMEOUT));
 }
 
+
+/*
+ *  receive data from target
+ *
+ *  in:
+ *    buf - data buffer
+ *    len - data length
+ *  out:
+ *    status code (errno-like)
+ */
 
 static int hc12lrae_rx(void *buf, size_t len)
 {
 	int ret;
 
-	ret = serial_read(&hc12lrae_serial, buf, len, HC12LRAE_AGENT_TIMEOUT);
+	ret = serial_read(&hc12lrae_serial, buf, &len,
+		HC12LRAE_AGENT_TIMEOUT * 10);
 	if (ret == ETIMEDOUT)
 	{
 		error("timeout - no connection with target\n");
@@ -443,6 +533,148 @@ static int hc12lrae_rx(void *buf, size_t len)
 	return 0;
 }
 
+
+/*
+ *  receive data word from target
+ *
+ *  in:
+ *    v - received value (on return)
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12lrae_rx_word(uint16_t *v)
+{
+	uint8_t b[2];
+	int ret;
+
+	ret = hc12lrae_rx(b, 2);
+	if (ret != 0)
+		return ret;
+
+	*v = uint16_be2host_buf(b);
+
+	return 0;
+}
+
+
+/*
+ *  calculate data block sum
+ *
+ *  in:
+ *    b - data buffer
+ *    n - data size
+ *  out:
+ *    sum
+ */
+
+static uint8_t hc12lrae_sum(const uint8_t *b, int n)
+{
+	int i;
+	uint8_t sum;
+
+	sum = 0;
+	for (i = 0; i < n; ++ i)
+		sum += b[i];
+
+	return sum;
+}
+
+
+/*
+ *  send command to target
+ *
+ *  in:
+ *    cmd - command
+ *    param - parameter block
+ *    n - parameter block size
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12lrae_cmd(uint8_t cmd, const uint8_t *param, size_t n)
+{
+	int ret;
+	uint8_t b;
+	uint8_t sum;
+
+	ret = hc12lrae_tx(&cmd, 1);
+	if (ret != 0)
+		return ret;
+
+	b = (uint8_t)(n + 3);
+	ret = hc12lrae_tx(&b, 1);
+	if (ret != 0)
+		return ret;
+
+	sum = cmd + b + hc12lrae_sum(param, n);
+
+	for (; n > 0; --n)
+	{
+		ret = hc12lrae_tx(param++, 1);
+		if (ret != 0)
+			return ret;
+	}
+
+	ret = hc12lrae_tx(&sum, 1);
+	if (ret != 0)
+		return ret;
+
+	ret = hc12lrae_rx(&b, 1);
+	if (ret != 0)
+		return ret;
+
+	if (b == HC12_AGENT_ERROR_SUM)
+	{
+		error("communication failed, invalid checksum\n");
+		return EIO;
+	}
+	if (b != HC12_AGENT_ERROR_NONE)
+	{
+		error("communication failed, unexpected answer\n");
+		return EIO;
+	}
+
+	return 0;
+}
+
+
+/*
+ *  get acknowledge from target
+ *
+ *  in:
+ *    void
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12lrae_ack(void)
+{
+	uint8_t b;
+	int ret;
+
+	ret = hc12lrae_rx(&b, 1);
+	if (ret != 0)
+		return ret;
+
+	if (b != HC12_AGENT_ERROR_NONE)
+	{
+		error("communication failed, invalid response received\n");
+		return EIO;
+	}
+
+	return 0;
+}
+
+
+/*
+ *  load agent into target RAM
+ *
+ *  in:
+ *    void
+ *  out:
+ *    status code (errno-like)
+ */
 
 static int hc12lrae_load_agent(void)
 {
@@ -456,12 +688,6 @@ static int hc12lrae_load_agent(void)
 		return 0;
 
 	ptr = hc12mem_target_info("lrae_agent", TRUE);
-	if (ptr == NULL)
-	{
-		error("target RAM agent not available, cannot proceed\n");
-		return EINVAL;
-	}
-
 	if (access(ptr, R_OK) == -1 &&
 	    strchr(ptr, SYS_PATH_SEPARATOR) == NULL)
 	{
@@ -472,9 +698,6 @@ static int hc12lrae_load_agent(void)
 	}
 	else
 		strlcpy(file, ptr, sizeof(file));
-
-	if (options.verbose)
-		printf("RAM agent file <%s>\n", (const char *)file);
 
 	ret = hc12lrae_ram_load(file, TRUE);
 	if (ret != 0)
@@ -497,7 +720,7 @@ static int hc12lrae_load_agent(void)
 	}
 	if (b != HC12_AGENT_ERROR_NONE)
 	{
-		error("target connection data error\n");
+		error("unknown response\n");
 		return EINVAL;
 	}
 
@@ -507,81 +730,140 @@ static int hc12lrae_load_agent(void)
 }
 
 
-#if 0
-static uint32_t hc12_bdm_flash_read_address_nb(uint32_t addr)
+/*
+ *  erase target EEPROM
+ *
+ *  in:
+ *    void
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12lrae_eeprom_erase(void)
 {
-	return addr + hc12_bdm_flash_linear_base;
-}
-
-
-static uint32_t hc12_bdm_flash_read_address_bl(uint32_t addr)
-{
-	return addr + (uint32_t)hc12_bdm_ppage_base * HCS12_FLASH_BANK_WINDOW_SIZE;
-}
-
-
-static uint32_t hc12_bdm_flash_read_address_bp(uint32_t addr)
-{
-	return (((uint32_t)hc12_bdm_ppage_base + (addr / HCS12_FLASH_BANK_WINDOW_SIZE)) << 16) +
-		HCS12_FLASH_BANK_WINDOW_ADDR + (addr % HCS12_FLASH_BANK_WINDOW_SIZE);
-}
-
-static int hc12lrae_flash_read(const char *file)
-{
-	uint32_t size;
 	int ret;
-	uint8_t *buf;
-	uint32_t i;
-	uint32_t chunk;
-	uint32_t addr;
-	unsigned long t;
-	uint8_t ppage;
-	uint8_t p;
-	uint32_t (*adc)(uint32_t addr);
+	uint8_t b;
+
+	if (hc12mcu_target.eeprom_size == 0)
+	{
+		error("EEPROM erase not possible - no EEPROM memory\n");
+		return EINVAL;
+	}
+
+	if (options.verbose)
+		printf("EEPROM erase: not supported\n");
+	return 0;
 
 	ret = hc12lrae_load_agent();
 	if (ret != 0)
 		return ret;
 
-	if (target.ppage_count == 0)
+	b = HC12_AGENT_CMD_EEPROM_MASS_ERASE;
+	ret = hc12lrae_tx(&b, 1);
+	if (ret != 0)
+		return ret;
+
+	ret = hc12lrae_ack();
+	if (ret != 0)
+		return ret;
+
+	if (options.verbose)
+		printf("EEPROM erase: memory erased %x\n", b);
+
+	if (options.verify)
 	{
-		error("FLASH not available\n");
+		b = HC12_AGENT_CMD_EEPROM_ERASE_VERIFY;
+		ret = hc12lrae_tx(&b, 1);
+		if (ret != 0)
+			return ret;
+
+		ret = hc12lrae_rx(&b, 1);
+		if (ret != 0)
+			return ret;
+
+		if (b == HC12_AGENT_ERROR_NONE)
+		{
+			if (options.verbose)
+				printf("EEPROM erase: verify ok\n");
+		}
+		else
+		{
+			if (b == HC12_AGENT_ERROR_VERIFY)
+				error("EEPROM erase verify failed - memory not clear\n");
+			else
+				error("unknown response\n");
+			return EIO;
+		}
+	}
+
+	return 0;
+}
+
+
+/*
+ *  read target EEPROM
+ *
+ *  in:
+ *    file - file name to write EEPROM data
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12lrae_eeprom_read(const char *file)
+{
+	int ret;
+	uint8_t *buf;
+	uint8_t cmd[1];
+	uint16_t addr;
+	uint16_t len;
+	unsigned long t;
+	uint16_t i;
+
+	if (hc12mcu_target.eeprom_size == 0)
+	{
+		error("EEPROM read not possible - no EEPROM memory\n");
 		return EINVAL;
 	}
 
-	size = target.ppage_count * HCS12_FLASH_BANK_WINDOW_SIZE;
-	buf = malloc(size);
+	if (options.verbose)
+		printf("EEPROM read: not supported\n");
+	return 0;
+
+	ret = hc12lrae_load_agent();
+	if (ret != 0)
+		return ret;
+
+	buf = malloc(hc12mcu_target.eeprom_size);
 	if (buf == NULL)
 	{
 		error("not enough memory\n");
 		return ENOMEM;
 	}
 
-	chunk = size / 128;
+	cmd[0] = HC12_AGENT_CMD_EEPROM_READ;
+	ret = hc12lrae_tx(cmd, 1);
+	if (ret != 0)
+		return ret;
 
-#if 0
-	t = progress_start("FLASH image read");
-	for (i = 0; i < size; i += chunk)
+	ret = hc12lrae_rx_word(&addr);
+	if (ret != 0)
+		return ret;
+	ret = hc12lrae_rx_word(&len);
+	if (ret != 0)
+		return ret;
+
+	if (options.verbose)
 	{
-		if (options.flash_addr == HC12LOAD_FLASH_ADDR_NON_BANKED)
-			addr = hc12_bdm_flash_linear_base + i;
-		else
-		{
-			p = hc12_bdm_ppage_base +
-				(uint8_t)(i / HCS12_FLASH_BANK_WINDOW_SIZE);
-			if (p != ppage)
-			{
-				ret = (*hc12_bdm_handler->write_byte)(
-					HCS12_IO_PPAGE, p);
-				if (ret != 0)
-					return ret;
-				ppage = p;
-			}
-			addr = HCS12_FLASH_BANK_WINDOW_ADDR +
-				(i % HCS12_FLASH_BANK_WINDOW_SIZE);
-		}
+		printf("EEPROM read: address range <0x%04x-0x%04x> size <0x%04x>\n",
+		       (unsigned int)addr,
+		       (unsigned int)(addr + len - 1),
+		       (unsigned int)len);
+	}
 
-		ret = (*hc12_bdm_handler->read_mem)(addr, buf + i, chunk);
+	t = progress_start("EEPROM read: data");
+	for (i = 0; i < len; ++ i)
+	{
+		ret = hc12lrae_rx(buf + i, 1);
 		if (ret != 0)
 		{
 			progress_stop(t, NULL, 0);
@@ -589,28 +871,21 @@ static int hc12lrae_flash_read(const char *file)
 			return ret;
 		}
 
-		progress_report(i + chunk, size);
+		progress_report(i + 1, len);
 	}
-	progress_stop(t, "FLASH image read", size);
+	progress_stop(t, "EEPROM read: data", len);
 
-	if (options.flash_addr == HC12LOAD_FLASH_ADDR_NON_BANKED)
-		adc = hc12_bdm_flash_read_address_nb;
-	else if (options.flash_addr == HC12LOAD_FLASH_ADDR_BANKED_LINEAR)
-		adc = hc12_bdm_flash_read_address_bl;
-	else if (options.flash_addr == HC12LOAD_FLASH_ADDR_BANKED_PPAGE)
-		adc = hc12_bdm_flash_read_address_bp;
-	ret = file_srec_write(file, "FLASH image", 0, size, buf, size - 2, adc,
-		!options.flash_all, options.srec_size);
+	ret = srec_write(file, "EEPROM data", addr, len, buf, addr, NULL,
+		!options.include_erased, options.srec_size);
 	if (ret != 0)
 	{
 		free(buf);
 		return ret;
 	}
-#endif
 
 	if (options.verbose)
 	{
-		printf("FLASH image file <%s> written\n",
+		printf("EEPROM read: data file <%s> written\n",
 		       (const char *)file);
 	}
 
@@ -618,8 +893,573 @@ static int hc12lrae_flash_read(const char *file)
 	return 0;
 }
 
-#endif
 
+/*
+ *  write target EEPROM
+ *
+ *  in:
+ *    file - file name with data to write
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12lrae_eeprom_write(const char *file)
+{
+	if (hc12mcu_target.eeprom_size == 0)
+	{
+		error("EEPROM write not possible - no EEPROM memory\n");
+		return EINVAL;
+	}
+
+	if (options.verbose)
+		printf("EEPROM write: not supported\n");
+
+	return 0;
+}
+
+
+/*
+ *  protect target EEPROM
+ *
+ *  in:
+ *    opt - protection option string
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12lrae_eeprom_protect(const char *opt)
+{
+	if (hc12mcu_target.eeprom_size == 0)
+	{
+		error("EEPROM protect not possible - no EEPROM memory\n");
+		return EINVAL;
+	}
+
+	if (options.verbose)
+		printf("EEPROM protect: not supported\n");
+
+	return 0;
+}
+
+
+/*
+ *  write single FLASH word
+ *
+ *  in:
+ *    block, ppage, addr - address of word to write
+ *    value - word value to write
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12lrae_flash_write_word(uint8_t block, uint8_t ppage, uint16_t addr, uint16_t value)
+{
+	uint8_t cmd[6];
+	uint8_t w[2];
+	uint8_t b;
+	int ret;
+
+	cmd[0] = block;
+	cmd[1] = ppage;
+	uint16_host2be_buf(cmd + 2, addr);
+	uint16_host2be_buf(cmd + 4, 2);
+
+	ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_WRITE, cmd, sizeof(cmd));
+	if (ret != 0)
+		return ret;
+
+	uint16_host2be_buf(w, value);
+	ret = hc12lrae_tx(w, sizeof(w));
+	if (ret != 0)
+		return ret;
+
+	b = w[0] + w[1];
+	ret = hc12lrae_tx(&b, 1);
+	if (ret != 0)
+		return ret;
+
+	ret = hc12lrae_rx(&b, 1);
+	if (ret != 0)
+		return ret;
+
+	if (b != HC12_AGENT_ERROR_NONE)
+	{
+		if (b == HC12_AGENT_ERROR_SUM)
+			error("communication failed, checksum error\n");
+		else
+			error("invalid response\n");
+		return EIO;
+	}
+
+	return 0;
+}
+
+
+/*
+ *  erase target FLASH
+ *
+ *  in:
+ *    unsecure - flag for unsecuring part after FLASH erasure
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12lrae_flash_erase(int unsecure)
+{
+	int ret;
+	uint8_t b;
+	uint32_t i;
+	uint8_t cmd[4];
+	unsigned long t;
+	uint32_t block_start;
+
+	ret = hc12lrae_load_agent();
+	if (ret != 0)
+		return ret;
+
+	block_start = 0;
+
+	if (options.keep_lrae)
+	{
+		t = progress_start("FLASH erase: block #0");
+		for (i = 0; i < hc12mcu_target.flash_block_size;
+		     i += hc12mcu_target.flash_sector)
+		{
+			cmd[0] = hc12mcu_linear_to_block(i);
+			cmd[1] = hc12mcu_linear_to_ppage(i);
+			uint16_host2be_buf(cmd + 2, (uint16_t)
+				(HCS12_FLASH_BANK_WINDOW_ADDR +
+				(i % HCS12_FLASH_BANK_WINDOW_SIZE)));
+
+			if (cmd[1] == (uint8_t)(hc12mcu_target.ppage_base + hc12mcu_target.ppage_count - 2) &&
+			    (i % HCS12_FLASH_BANK_WINDOW_SIZE) < hc12lrae_flash_size)
+			{
+				/* skip LRAE area */
+				if (options.debug)
+					printf("skip LRAE area: 0x%04x\n",
+					       (unsigned int)i);
+			}
+			else
+			{
+				ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_ERASE_SECTOR, cmd, 4);
+				if (ret != 0)
+				{
+					progress_stop(t, NULL, 0);
+					return ret;
+				}
+
+				ret = hc12lrae_rx(&b, 1);
+				if (ret != 0)
+				{
+					progress_stop(t, NULL, 0);
+					return ret;
+				}
+
+				if (b != HC12_AGENT_ERROR_NONE)
+				{
+					progress_stop(t, NULL, 0);
+					error("invalid response\n");
+					return EIO;
+				}
+			}
+			progress_report(i + hc12mcu_target.flash_sector,
+				hc12mcu_target.flash_size);
+		}
+		progress_stop(t, NULL, 0);
+
+		ret = hc12lrae_flash_write_word(0, (uint8_t)
+			(hc12mcu_target.ppage_base +
+			hc12mcu_target.ppage_count - 1),
+			0xfffe, HC12LRAE_FLASH_START);
+		if (ret != 0)
+			return ret;
+
+		if (options.verbose)
+			printf("FLASH erase: LRAE retained, start vector restored\n");
+
+		block_start = 1;
+		unsecure = TRUE;
+	}
+
+	for (i = block_start; i < (uint32_t)hc12mcu_target.flash_blocks; ++ i)
+	{
+		cmd[0] = (uint8_t)i;
+		cmd[1] = hc12mcu_block_to_ppage_base(i);
+		ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_MASS_ERASE, cmd, 2);
+		if (ret != 0)
+			return ret;
+
+		ret = hc12lrae_ack();
+		if (ret != 0)
+			return ret;
+
+		if (options.verbose)
+		{
+			printf("FLASH erase: block #%u bulk erased\n",
+			       (unsigned int)i);
+		}
+
+		if (!options.verify)
+			continue;
+
+		cmd[0] = (uint8_t)i;
+		cmd[1] = hc12mcu_block_to_ppage_base(i);
+		ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_ERASE_VERIFY, cmd, 2);
+		if (ret != 0)
+			return ret;
+
+		ret = hc12lrae_rx(&b, 1);
+		if (ret != 0)
+			return ret;
+
+		if (b == HC12_AGENT_ERROR_NONE)
+		{
+			if (options.verbose)
+			{
+				printf("FLASH erase: block #%u verified\n",
+				       (unsigned int)i);
+			}
+		}
+		else
+		{
+			if (b == HC12_AGENT_ERROR_VERIFY)
+				error("FLASH erase verify failed - memory not clear\n");
+			else
+				error("unknown response\n");
+			return EIO;
+		}
+	}
+
+	if (options.verbose)
+		printf("FLASH erase: memory erased\n");
+
+	if (unsecure)
+	{
+		ret = hc12lrae_flash_write_word(0, (uint8_t)
+			(hc12mcu_target.ppage_base +
+			hc12mcu_target.ppage_count - 1),
+			0xff0e, 0xfffe);
+		if (ret != 0)
+			return ret;
+
+		if (options.verbose)
+			printf("FLASH erase: security byte set to unsecure state\n");
+	}
+
+	return 0;
+}
+
+
+/*
+ *  read target FLASH
+ *
+ *  in:
+ *    file - file name to write
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12lrae_flash_read(const char *file)
+{
+	int ret;
+	uint8_t *buf;
+	uint8_t cmd[5];
+	uint32_t size;
+	unsigned long t;
+	uint32_t i;
+	uint32_t (*adc)(uint32_t addr);
+	uint8_t b;
+
+	if (hc12mcu_target.flash_size == 0)
+	{
+		error("FLASH read not possible - no FLASH memory\n");
+		return EINVAL;
+	}
+
+	ret = hc12lrae_load_agent();
+	if (ret != 0)
+		return ret;
+
+	if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
+		size = hc12mcu_target.flash_nb_size;
+	else
+		size = hc12mcu_target.flash_size;
+
+	buf = malloc(size);
+	if (buf == NULL)
+	{
+		error("not enough memory\n");
+		return ENOMEM;
+	}
+
+	t = progress_start("FLASH read: data");
+	for (i = 0; i < size; ++ i)
+	{
+		if ((i % HCS12_FLASH_BANK_WINDOW_SIZE) == 0)
+		{
+			cmd[0] = hc12mcu_linear_to_block(i);
+			cmd[1] = hc12mcu_linear_to_ppage(i);
+			uint16_host2be_buf(cmd + 2, HCS12_FLASH_BANK_WINDOW_ADDR);
+			uint16_host2be_buf(cmd + 4, HCS12_FLASH_BANK_WINDOW_SIZE);
+
+			ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_READ, cmd, sizeof(cmd));
+			if (ret != 0)
+			{
+			  error_nl:
+				progress_stop(t, NULL, 0);
+				free(buf);
+				return ret;
+			}
+		}
+
+		ret = hc12lrae_rx(buf + i, 1);
+		if (ret != 0)
+			goto error_nl;
+
+		progress_report(i + 1, size);
+
+		if (((i + 1) % HCS12_FLASH_BANK_WINDOW_SIZE) == 0)
+		{
+			ret = hc12lrae_rx(&b, 1);
+			if (ret != 0)
+				goto error_nl;
+
+			if (hc12lrae_sum(buf + i -
+				(i % HCS12_FLASH_BANK_WINDOW_SIZE),
+				HCS12_FLASH_BANK_WINDOW_SIZE) != b)
+			{
+				progress_stop(t, NULL, 0);
+				error("invalid checksum received\n");
+				free(buf);
+				return ret;
+			}
+		}
+	}
+	progress_stop(t, "FLASH read: data", size);
+
+	if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
+		adc = hc12mcu_flash_write_address_nb;
+	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_LINEAR)
+		adc = hc12mcu_flash_write_address_bl;
+	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_PPAGE)
+		adc = hc12mcu_flash_write_address_bp;
+	ret = srec_write(file, "FLASH image", 0, size, buf, size - 2, adc,
+		!options.include_erased, options.srec_size);
+	if (ret != 0)
+	{
+		free(buf);
+		return ret;
+	}
+
+	if (options.verbose)
+	{
+		printf("FLASH read: data file <%s> written\n",
+		       (const char *)file);
+	}
+
+	free(buf);
+	return 0;
+}
+
+
+/*
+ *  write target FLASH
+ *
+ *  in:
+ *    file - file name with data for programming
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12lrae_flash_write(const char *file)
+{
+	uint32_t (*adc)(uint32_t addr);
+	uint32_t size;
+	uint8_t *buf;
+	char info[256];
+	uint32_t addr_min;
+	uint32_t addr_max;
+	uint32_t len;
+	uint32_t i, j;
+	uint32_t chunk;
+	uint32_t cnt;
+	unsigned long t;
+	uint8_t cmd[6];
+	uint8_t b;
+	int ret;
+
+	if (hc12mcu_target.flash_size == 0)
+	{
+		error("FLASH write not possible - no FLASH memory\n");
+		return EINVAL;
+	}
+
+	ret = hc12lrae_load_agent();
+	if (ret != 0)
+		return ret;
+
+	chunk = 256;
+
+	if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
+		size = hc12mcu_target.flash_nb_size;
+	else
+		size = hc12mcu_target.flash_size;
+
+	buf = malloc(size);
+	if (buf == NULL)
+	{
+		error("not enough memory\n");
+		return ENOMEM;
+	}
+	memset(buf, 0xff, (size_t)size);
+
+	if (options.verbose)
+	{
+		printf("FLASH write: image file <%s>\n",
+		       (const char *)file);
+	}
+
+	if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
+		adc = hc12mcu_flash_read_address_nb;
+	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_LINEAR)
+		adc = hc12mcu_flash_read_address_bl;
+	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_PPAGE)
+		adc = hc12mcu_flash_read_address_bp;
+
+	ret = srec_read(file, info, sizeof(info),
+		buf, size, NULL, &addr_min, &addr_max, adc);
+	if (ret != 0)
+	{
+		free(buf);
+		return ret;
+	}
+
+	len = 0;
+	for (i = 0; i < size; i += chunk)
+	{
+		for (j = 0; j < chunk; j += 4)
+		{
+			if (*((uint32_t *)&buf[i + j]) != 0xffffffff)
+				break;
+		}
+		if (j == chunk)
+			continue;
+		len += chunk;
+	}
+
+	if (options.verbose)
+	{
+		if (info[0] != '\0')
+		{
+			printf("FLASH write: image info <%s>\n",
+			       (const char *)info);
+		}
+
+#if 0
+		if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
+		{
+			printf("FLASH write: size <0x%04x> address range <0x%04x-0x%04x>\n",
+			       (unsigned int)len,
+			       (unsigned int)addr_min,
+			       (unsigned int)addr_max);
+		}
+		else
+#endif
+		{
+			printf("FLASH write: size <0x%04x> linear address range <0x%05x-0x%05x>\n",
+			       (unsigned int)len,
+			       (unsigned int)(addr_min + hc12mcu_target.flash_linear_base),
+			       (unsigned int)(addr_max + hc12mcu_target.flash_linear_base));
+		}
+	}
+
+	cnt = 0;
+	t = progress_start("FLASH write: image");
+	for (i = 0; i < size; i += chunk)
+	{
+		for (j = 0; j < chunk; j += 4)
+		{
+			if (*((uint32_t *)&buf[i + j]) != 0xffffffff)
+				break;
+		}
+		if (j == chunk)
+			continue;
+		cnt += chunk;
+
+		cmd[0] = hc12mcu_linear_to_block(i);
+		cmd[1] = hc12mcu_linear_to_ppage(i);
+		uint16_host2be_buf(cmd + 2, (uint16_t)
+			(HCS12_FLASH_BANK_WINDOW_ADDR +
+			(i % HCS12_FLASH_BANK_WINDOW_SIZE)));
+		uint16_host2be_buf(cmd + 4, (uint16_t)chunk);
+
+		ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_WRITE, cmd, sizeof(cmd));
+		if (ret != 0)
+		{
+		  error_nl:
+			progress_stop(t, NULL, 0);
+			free(buf);
+			return ret;
+		}
+
+		ret = hc12lrae_tx(buf + i, chunk);
+		if (ret != 0)
+			goto error_nl;
+
+		b = hc12lrae_sum(buf + i, chunk);
+		ret = hc12lrae_tx(&b, 1);
+		if (ret != 0)
+			goto error_nl;
+
+		ret = hc12lrae_rx(&b, 1);
+		if (ret != 0)
+			goto error_nl;
+		if (b != HC12_AGENT_ERROR_NONE)
+		{
+			progress_stop(t, NULL, 0);
+			if (b == HC12_AGENT_ERROR_SUM)
+				error("communication failed, checksum error\n");
+			else
+				error("invalid response\n");
+			free(buf);
+			return ret;
+		}
+
+		progress_report(cnt, len);
+	}
+	progress_stop(t, "FLASH write: image", len);
+
+	free(buf);
+	return 0;
+}
+
+
+/*
+ *  unsupported operations
+ */
+
+static int hc12lrae_unsecure(void)
+{
+	error("unsecure: operation not supported\n");
+	return EINVAL;
+}
+
+
+static int hc12lrae_secure(void)
+{
+	error("secure: operation not supported\n");
+	return EINVAL;
+}
+
+
+static int hc12lrae_reset(void)
+{
+	error("reset: operation not supported\n");
+	return EINVAL;
+}
+
+
+/* handler for LRAE boot-loader */
 
 hc12mem_target_handler_t hc12mem_target_handler_lrae =
 {
@@ -629,21 +1469,13 @@ hc12mem_target_handler_t hc12mem_target_handler_lrae =
 	hc12lrae_ram_run,
 	hc12lrae_unsecure,
 	hc12lrae_secure,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	/*
-	hc12_bdm_eeprom_read,
-	hc12_bdm_eeprom_erase,
-	hc12_bdm_eeprom_write,
-	hc12_bdm_eeprom_protect,
-	*/
-#if 0
+	hc12lrae_eeprom_read,
+	hc12lrae_eeprom_erase,
+	hc12lrae_eeprom_write,
+	hc12lrae_eeprom_protect,
 	hc12lrae_flash_read,
-	/*
 	hc12lrae_flash_erase,
-	hc12lrae_flash_write
-	*/
-#endif
+	hc12lrae_flash_write,
+	NULL,
+	hc12lrae_reset
 };

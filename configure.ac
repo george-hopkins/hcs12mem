@@ -19,7 +19,7 @@ dnl   along with this program; if not, write to the Free Software
 dnl   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 AC_INIT(src/hc12mem.c)
-AM_INIT_AUTOMAKE([hc12mem], [1.0])
+AM_INIT_AUTOMAKE([hc12mem], [1.1])
 AM_CONFIG_HEADER(config.h)
 AC_CANONICAL_HOST
 AC_PROG_MAKE_SET
@@ -119,11 +119,12 @@ dnl Makefiles to generate
 AC_OUTPUT([
 	Makefile
 	src/Makefile
+	test/Makefile
 	doc/Makefile
 	doc/hc12mem.1
 	target/Makefile
-	target/mc9s12a64_bdm/Makefile
-	target/mc9s12ne64_bdm/Makefile
+	target/bdm/Makefile
+	target/lrae/Makefile
 	])
 
 dnl feature synopsis
