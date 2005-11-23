@@ -21,7 +21,7 @@
 srcdir = @srcdir@
 VPATH = @srcdir@
 
-bin_PROGRAMS = srecrand
+noinst_PROGRAMS = srecrand
 
 srecrand_SOURCES = srecrand.c
 

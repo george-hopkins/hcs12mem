@@ -20,8 +20,7 @@ is a tool for operating on Freescale HC12 MCU's internal memories
 .PD
 .SH "SUPPORTED INTERFACES"
 .PP
-.B hc12mem
-can communicate with the target device using BDM link or serial port.
+hc12mem can communicate with the target device using BDM link or serial port.
 .PP
 .B BDM POD
 .PP
@@ -56,18 +55,27 @@ MC9S12NE64). This interface doesn't require specifying target
 oscillator frequency. For more details see
 .I http://cml.mfk.net.pl/podex
 .PP
-.B LRAE via SERIAL PORT
+.B BOOTLOADER (Freescale's LRAE via serial port)
 .PP
-To use serial port as connection with target device, special program
-is required in target device, so called bootloader.
-.B hc12mem
-currently supports only single
-bootloader - Freescale's LRAE (Load RAM And Execute). LRAE is
+hc12mem supports operations on target memory using Freescale's LRAE
+(Load RAM And Execute) bootloader, using serial port connection
+(SCI0 on target hardware). Prior to all operations, presence of LRAE
+bootloader is required in target's FLASH memory. LRAE is
 available for a wide selection of HCS12 MCUs. Source code, S-record
 files and description can be obtained from Freescale as Application
 Note - AN2546. This bootloader is supposedly loaded into new HCS12
 MCUs as last stage of factory processing, thus some "fresh" parts straight
 from Freescale should have this bootloader already in FLASH memory.
+.PP
+.B MONITOR (Freescale's serial monitor - AN2548)
+.PP
+hc12mem supports operations on target memory using Freescale's serial monitor
+(AN2548). This monitor uses serial port connection (SCI0 on target hardware).
+Prior to all operations, presence of serial monitor is required in target's
+FLASH memory. Monitor is available for a wide selection of HCS12 MCUs.
+Source code, S-record files and description can be obtained from Freescale
+as Application Note - AN2548. Port of the source code to GNU tools is
+available, see "SEE ALSO" section.
 .SH "SUPPORTED MCUs"
 .PP
 Support for various HCS12 derivatives is dependent on target device
@@ -84,13 +92,23 @@ C32, C64, C96, C128, GC16, GC32, GC64, GC96, GC128,
 D32, D64, D128, D256, D512, E32, E64, E128, E256, H128, H256,
 UF32, NE64.
 .PP
-.B LRAE
+.B LRAE BOOTLOADER
 .PP
-hc12mem using LRAE supports all derivatives that can run LRAE (maybe
-some other too, if LRAE can work on them):
+hc12mem using LRAE supports all derivatives that can run LRAE, according
+to AN2546 (maybe some others too, if LRAE can work on them):
 .PP
 <MC9S12> A32, A64, A128, A256, A512, C32, C128,
 D32, D64, D128, D256, D512, E128.
+.PP
+.B SERIAL MONITOR
+.PP
+hc12mem using serial monitor supports all derivatives that can run serial
+monitor. AN2548 has variants of serial monitor for the following targets
+(compiling dedicated version for other target is easy):
+.PP
+<MC9S12> C32, D32, D64, D128, D256, D512, E128, H256.
+.PP
+My port to GNU tools adds support for A64 and NE64.
 .SH OPTIONS
 .TP
 .B -h, --help
@@ -106,8 +124,10 @@ Force operation, if questionable.
 Use given interface for target connection. Supported ones are:
 .IP
 .B lrae
-- Freescale's LRAE (Load RAM And Execute) boot loader
-.PD 0
+- Freescale's LRAE (Load RAM And Execute) boot loader (AN2546)
+.IP
+.B sm
+- Freescale's serial monitor (AN2548)
 .IP
 .B bdm12pod
 - original Kevin Ross's BDM12 POD
@@ -338,7 +358,7 @@ thus immediatelly starting program execution:
 hc12mem [-ipto] --flash-erase --flash-write program.s19 --reset
 .RE
 .PP
-.B LRAE serial bootloader
+.B LRAE BOOTLOADER (AN2546)
 .PP
 Using LRAE serial bootloader, we specify following common options:
 .RS
@@ -373,6 +393,52 @@ is loaded into FLASH, LRAE is not running anymore. Thus, if you want to reuse LR
 your program must have a way to enter LRAE on request, for example push button
 tested as very first thing in your program or something like that.
 Also, every hc12mem call using LRAE requires preceding manual target reset.
+.PP
+Writing program destined to be loaded into FLASH memory in coexistence with
+LRAE bootloader has special requirements (memory layout, MCU initialization),
+see Application Note AN2546 for more details.
+.PP
+.B SERIAL MONITOR (AN2548)
+.PP
+Using serial monitor, we specify following common options (oscillator frequency
+is not required):
+.RS
+.PP
+hc12mem -i sm -p /dev/uart0 -t mc9s12a64
+.RE
+.PP
+Baud rate for serial connection is 115200bps by default. If you have special
+version of serial monitor compiled with some other settings, you can override
+auto-selected baud rate with -b <baud> option.
+.PP
+Using serial monitor, there's no way to erase it, except via BDM, and:
+.PD 0
+.PP
+- erasing FLASH erases only parts of memory outside serial monitor
+(--flash-erase and --flash-erase-unsecure do the same)
+.PP
+- erasing FLASH erases also EEPROM ! (this is how serial monitor implements
+this)
+.PP
+- securing and unsecuring MCU is not supported
+.PD
+.PP
+Erase EEPROM, write some initial data and protect upper 256 bytes of EEPROM:
+.RS
+.PP
+hc12mem [-ipto] --eeprom-erase --eeprom-write eeprom.s19 --eeprom-protect 256B
+.RE
+.PP
+Erase FLASH (EEPROM gets erased too), write your program and reset target (thus
+starting your program):
+.RS
+.PP
+hc12mem [-ipt] --flash-erase --flash-write program.s19 --reset
+.RE
+.PP
+Writing program destined to be loaded into FLASH memory in coexistence with
+serial monitor has special requirements (memory layout, MCU initialization),
+see Application Note AN2548 for more details.
 .SH "SEE ALSO"
 .PD 0
 .PP
@@ -390,6 +456,9 @@ Also, every hc12mem call using LRAE requires preceding manual target reset.
 .PP
 .I http://www.kevinro.com
 - Kevin Ross's BDM12 POD web page
+.PP
+.I http://cml.mfk.net.pl/an2548
+- my port of Freescale's serial monitor (AN2548) to GNU tools
 .PD
 .SH "COPYRIGHT"
 (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>

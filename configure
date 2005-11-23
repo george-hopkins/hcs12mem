@@ -1607,7 +1607,7 @@ fi
 
 # Define the identity of the package.
  PACKAGE=hc12mem
- VERSION=1.1
+ VERSION=1.2
 
 
 cat >>confdefs.h <<_ACEOF
@@ -3020,10 +3020,6 @@ fi
 
 
 
-TARGET_CC=$CC
-TARGET_CFLAGS=
-TARGET_LDFLAGS=$LDFLAGS
-TARGET_LDLIBS=
 SYSTEM=`uname -s`
 if test "$SYSTEM" = "SunOS"; then
 
@@ -3031,7 +3027,7 @@ cat >>confdefs.h <<\_ACEOF
 #define SYSTEM_SUNOS 1
 _ACEOF
 
-  TARGET_CFLAGS="$TARGET_CFLAGS -D__EXTENSIONS__"
+  CFLAGS="$CFLAGS -D__EXTENSIONS__"
 fi
 if test "$SYSTEM" = "FreeBSD"; then
 
@@ -3046,7 +3042,7 @@ cat >>confdefs.h <<\_ACEOF
 #define SYSTEM_LINUX 1
 _ACEOF
 
-  TARGET_CFLAGS="$TARGET_CFLAGS -D_GNU_SOURCE"
+  CFLAGS="$CFLAGS -D_GNU_SOURCE"
 fi
 if test "$SYSTEM" != "${SYSTEM#CYGWIN}"; then
 
@@ -3059,11 +3055,10 @@ _ACEOF
 fi
 if test "$GCC" = "yes"; then
   if test "$CYGWIN" = "1"; then
-    TARGET_CFLAGS="$TARGET_CFLAGS -pipe -pedantic -Wall -fsigned-char -g"
+    CFLAGS="$CFLAGS -pedantic -Wall -fsigned-char"
   else
-    TARGET_CFLAGS="$TARGET_CFLAGS -pipe -ansi -pedantic -Wall -fsigned-char -g"
+    CFLAGS="$CFLAGS -ansi -pedantic -Wall -fsigned-char"
   fi
-  TARGET_CFLAGS="$TARGET_CFLAGS -Wno-unused-function"
 fi
 
 
@@ -3080,7 +3075,7 @@ cat >>confdefs.h <<\_ACEOF
 #define DEBUG 1
 _ACEOF
 
-  TARGET_CFLAGS="$TARGET_CFLAGS -g"
+  CFLAGS="$CFLAGS -g"
 else
 
 cat >>confdefs.h <<\_ACEOF
@@ -7100,13 +7095,6 @@ fi
 
 
 
-CC=$TARGET_CC
-
-CFLAGS=$TARGET_CFLAGS
-
-LDFLAGS=$TARGET_LDFLAGS
-
-LIBS=$TARGET_LIBS
 
 
 

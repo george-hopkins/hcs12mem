@@ -6,6 +6,8 @@ Communication with target device:
   and my own improved version of PODEX)
 * LRAE - Freescale's bootloader, connection via serial port (see Freescale's
   Application Note AN2546)
+* Freescale's serial monitor, connection via serial port (see Freescale's
+  Application Note AN2548)
 
 Supported MCUs: common prefix is <MC9S12>
 A32, A64, A128, A256, A512,

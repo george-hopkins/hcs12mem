@@ -23,6 +23,7 @@
 #include "hc12mem.h"
 #include "hc12mcu.h"
 #include "hc12lrae.h"
+#include "hc12sm.h"
 #include "hc12bdm.h"
 
 #if HAVE_GETOPT_H
@@ -55,7 +56,8 @@ static const char *PRG_USAGE =
 	"      podex     - PODEX with patched firmware\n"
 	"      podex-bug - original Marek Peca's PODEX (with bugs)\n"
 	"      podex-25  - special PODEX version dedicated for 25MHz target\n"
-	"      lrae      - Freescale's serial LRAE bootloader\n"
+	"      lrae      - Freescale's serial LRAE bootloader (AN2546)\n"
+	"      sm        - Freescale's serial monitor (AN2548)\n"
 	"  -p <port>, --port <port>\n"
 	"      use given port for target connection\n"
 	"  -b <baud>, --baud <baud>\n"
@@ -118,6 +120,7 @@ static const char *PRG_USAGE =
 static const hc12mem_target_handler_t *hc12mem_target_handler_table[] =
 {
 	&hc12mem_target_handler_lrae,
+	&hc12mem_target_handler_sm,
 	&hc12mem_target_handler_bdm12pod,
 	NULL
 };

@@ -99,6 +99,7 @@ static unsigned long hc12lrae_get_baud(unsigned long osc)
 
 	found_baud = -1;
 	found_prescaler = -1;
+	found_error = 0;
 	for (i = 0; i < HC12LRAE_PRESCALER_TABLE_SIZE; ++ i)
 	{
 		baud[i] = osc / (2 * 16 * hc12lrae_prescaler_table[i]);
@@ -752,6 +753,7 @@ static int hc12lrae_eeprom_erase(void)
 
 	if (options.verbose)
 		printf("EEPROM erase: not supported\n");
+
 	return 0;
 
 	ret = hc12lrae_load_agent();
@@ -811,14 +813,6 @@ static int hc12lrae_eeprom_erase(void)
 
 static int hc12lrae_eeprom_read(const char *file)
 {
-	int ret;
-	uint8_t *buf;
-	uint8_t cmd[1];
-	uint16_t addr;
-	uint16_t len;
-	unsigned long t;
-	uint16_t i;
-
 	if (hc12mcu_target.eeprom_size == 0)
 	{
 		error("EEPROM read not possible - no EEPROM memory\n");
@@ -827,69 +821,7 @@ static int hc12lrae_eeprom_read(const char *file)
 
 	if (options.verbose)
 		printf("EEPROM read: not supported\n");
-	return 0;
 
-	ret = hc12lrae_load_agent();
-	if (ret != 0)
-		return ret;
-
-	buf = malloc(hc12mcu_target.eeprom_size);
-	if (buf == NULL)
-	{
-		error("not enough memory\n");
-		return ENOMEM;
-	}
-
-	cmd[0] = HC12_AGENT_CMD_EEPROM_READ;
-	ret = hc12lrae_tx(cmd, 1);
-	if (ret != 0)
-		return ret;
-
-	ret = hc12lrae_rx_word(&addr);
-	if (ret != 0)
-		return ret;
-	ret = hc12lrae_rx_word(&len);
-	if (ret != 0)
-		return ret;
-
-	if (options.verbose)
-	{
-		printf("EEPROM read: address range <0x%04x-0x%04x> size <0x%04x>\n",
-		       (unsigned int)addr,
-		       (unsigned int)(addr + len - 1),
-		       (unsigned int)len);
-	}
-
-	t = progress_start("EEPROM read: data");
-	for (i = 0; i < len; ++ i)
-	{
-		ret = hc12lrae_rx(buf + i, 1);
-		if (ret != 0)
-		{
-			progress_stop(t, NULL, 0);
-			free(buf);
-			return ret;
-		}
-
-		progress_report(i + 1, len);
-	}
-	progress_stop(t, "EEPROM read: data", len);
-
-	ret = srec_write(file, "EEPROM data", addr, len, buf, addr, NULL,
-		!options.include_erased, options.srec_size);
-	if (ret != 0)
-	{
-		free(buf);
-		return ret;
-	}
-
-	if (options.verbose)
-	{
-		printf("EEPROM read: data file <%s> written\n",
-		       (const char *)file);
-	}
-
-	free(buf);
 	return 0;
 }
 
@@ -1151,6 +1083,58 @@ static int hc12lrae_flash_erase(int unsecure)
 
 
 /*
+ *  FLASH read callback
+ *
+ *  in:
+ *    addr - FLASH linear address
+ *    size - block size
+ *    buf - data buffer
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12lrae_flash_read_cb(uint32_t addr, size_t size, void *buf)
+{
+	int ret;
+	uint8_t cmd[5];
+	uint8_t b;
+
+	if ((addr % HCS12_FLASH_BANK_WINDOW_SIZE) == 0)
+	{
+		cmd[0] = hc12mcu_linear_to_block(addr);
+		cmd[1] = hc12mcu_linear_to_ppage(addr);
+		uint16_host2be_buf(cmd + 2, HCS12_FLASH_BANK_WINDOW_ADDR);
+		uint16_host2be_buf(cmd + 4, HCS12_FLASH_BANK_WINDOW_SIZE);
+
+		ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_READ, cmd, sizeof(cmd));
+		if (ret != 0)
+			return ret;
+	}
+
+	ret = hc12lrae_rx(buf, 1);
+	if (ret != 0)
+		return ret;
+
+	if (((addr + 1) % HCS12_FLASH_BANK_WINDOW_SIZE) == 0)
+	{
+		ret = hc12lrae_rx(&b, 1);
+		if (ret != 0)
+			return ret;
+
+		if (hc12lrae_sum((uint8_t *)buf -
+			(addr % HCS12_FLASH_BANK_WINDOW_SIZE),
+			HCS12_FLASH_BANK_WINDOW_SIZE) != b)
+		{
+			error("invalid checksum received\n");
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+
+/*
  *  read target FLASH
  *
  *  in:
@@ -1162,102 +1146,67 @@ static int hc12lrae_flash_erase(int unsecure)
 static int hc12lrae_flash_read(const char *file)
 {
 	int ret;
-	uint8_t *buf;
-	uint8_t cmd[5];
-	uint32_t size;
-	unsigned long t;
-	uint32_t i;
-	uint32_t (*adc)(uint32_t addr);
-	uint8_t b;
-
-	if (hc12mcu_target.flash_size == 0)
-	{
-		error("FLASH read not possible - no FLASH memory\n");
-		return EINVAL;
-	}
 
 	ret = hc12lrae_load_agent();
 	if (ret != 0)
 		return ret;
 
-	if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
-		size = hc12mcu_target.flash_nb_size;
-	else
-		size = hc12mcu_target.flash_size;
-
-	buf = malloc(size);
-	if (buf == NULL)
-	{
-		error("not enough memory\n");
-		return ENOMEM;
-	}
-
-	t = progress_start("FLASH read: data");
-	for (i = 0; i < size; ++ i)
-	{
-		if ((i % HCS12_FLASH_BANK_WINDOW_SIZE) == 0)
-		{
-			cmd[0] = hc12mcu_linear_to_block(i);
-			cmd[1] = hc12mcu_linear_to_ppage(i);
-			uint16_host2be_buf(cmd + 2, HCS12_FLASH_BANK_WINDOW_ADDR);
-			uint16_host2be_buf(cmd + 4, HCS12_FLASH_BANK_WINDOW_SIZE);
-
-			ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_READ, cmd, sizeof(cmd));
-			if (ret != 0)
-			{
-			  error_nl:
-				progress_stop(t, NULL, 0);
-				free(buf);
-				return ret;
-			}
-		}
-
-		ret = hc12lrae_rx(buf + i, 1);
-		if (ret != 0)
-			goto error_nl;
-
-		progress_report(i + 1, size);
-
-		if (((i + 1) % HCS12_FLASH_BANK_WINDOW_SIZE) == 0)
-		{
-			ret = hc12lrae_rx(&b, 1);
-			if (ret != 0)
-				goto error_nl;
-
-			if (hc12lrae_sum(buf + i -
-				(i % HCS12_FLASH_BANK_WINDOW_SIZE),
-				HCS12_FLASH_BANK_WINDOW_SIZE) != b)
-			{
-				progress_stop(t, NULL, 0);
-				error("invalid checksum received\n");
-				free(buf);
-				return ret;
-			}
-		}
-	}
-	progress_stop(t, "FLASH read: data", size);
-
-	if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
-		adc = hc12mcu_flash_write_address_nb;
-	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_LINEAR)
-		adc = hc12mcu_flash_write_address_bl;
-	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_PPAGE)
-		adc = hc12mcu_flash_write_address_bp;
-	ret = srec_write(file, "FLASH image", 0, size, buf, size - 2, adc,
-		!options.include_erased, options.srec_size);
+	ret = hc12mcu_flash_read(file, 1, hc12lrae_flash_read_cb);
 	if (ret != 0)
+		return ret;
+
+	return 0;
+}
+
+
+/*
+ *  FLASH write callback
+ *
+ *  in:
+ *    addr - FLASH linear address
+ *    size - block size
+ *    buf - data buffer
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12lrae_flash_write_cb(uint32_t addr, size_t size, const void *buf)
+{
+	int ret;
+	uint8_t cmd[6];
+	uint8_t b;
+
+	cmd[0] = hc12mcu_linear_to_block(addr);
+	cmd[1] = hc12mcu_linear_to_ppage(addr);
+	uint16_host2be_buf(cmd + 2, (uint16_t)hc12mcu_flash_addr_window(addr));
+	uint16_host2be_buf(cmd + 4, (uint16_t)size);
+
+	ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_WRITE, cmd, sizeof(cmd));
+	if (ret != 0)
+		return ret;
+
+	ret = hc12lrae_tx(buf, size);
+	if (ret != 0)
+		return ret;
+
+	b = hc12lrae_sum(buf, size);
+	ret = hc12lrae_tx(&b, 1);
+	if (ret != 0)
+		return ret;
+
+	ret = hc12lrae_rx(&b, 1);
+	if (ret != 0)
+		return ret;
+
+	if (b != HC12_AGENT_ERROR_NONE)
 	{
-		free(buf);
+		if (b == HC12_AGENT_ERROR_SUM)
+			error("communication failed, checksum error\n");
+		else
+			error("invalid response\n");
 		return ret;
 	}
 
-	if (options.verbose)
-	{
-		printf("FLASH read: data file <%s> written\n",
-		       (const char *)file);
-	}
-
-	free(buf);
 	return 0;
 }
 
@@ -1273,163 +1222,16 @@ static int hc12lrae_flash_read(const char *file)
 
 static int hc12lrae_flash_write(const char *file)
 {
-	uint32_t (*adc)(uint32_t addr);
-	uint32_t size;
-	uint8_t *buf;
-	char info[256];
-	uint32_t addr_min;
-	uint32_t addr_max;
-	uint32_t len;
-	uint32_t i, j;
-	uint32_t chunk;
-	uint32_t cnt;
-	unsigned long t;
-	uint8_t cmd[6];
-	uint8_t b;
 	int ret;
-
-	if (hc12mcu_target.flash_size == 0)
-	{
-		error("FLASH write not possible - no FLASH memory\n");
-		return EINVAL;
-	}
 
 	ret = hc12lrae_load_agent();
 	if (ret != 0)
 		return ret;
 
-	chunk = 256;
-
-	if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
-		size = hc12mcu_target.flash_nb_size;
-	else
-		size = hc12mcu_target.flash_size;
-
-	buf = malloc(size);
-	if (buf == NULL)
-	{
-		error("not enough memory\n");
-		return ENOMEM;
-	}
-	memset(buf, 0xff, (size_t)size);
-
-	if (options.verbose)
-	{
-		printf("FLASH write: image file <%s>\n",
-		       (const char *)file);
-	}
-
-	if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
-		adc = hc12mcu_flash_read_address_nb;
-	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_LINEAR)
-		adc = hc12mcu_flash_read_address_bl;
-	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_PPAGE)
-		adc = hc12mcu_flash_read_address_bp;
-
-	ret = srec_read(file, info, sizeof(info),
-		buf, size, NULL, &addr_min, &addr_max, adc);
+	ret = hc12mcu_flash_write(file, HC12LRAE_BUFFER_SIZE, hc12lrae_flash_write_cb);
 	if (ret != 0)
-	{
-		free(buf);
 		return ret;
-	}
 
-	len = 0;
-	for (i = 0; i < size; i += chunk)
-	{
-		for (j = 0; j < chunk; j += 4)
-		{
-			if (*((uint32_t *)&buf[i + j]) != 0xffffffff)
-				break;
-		}
-		if (j == chunk)
-			continue;
-		len += chunk;
-	}
-
-	if (options.verbose)
-	{
-		if (info[0] != '\0')
-		{
-			printf("FLASH write: image info <%s>\n",
-			       (const char *)info);
-		}
-
-#if 0
-		if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
-		{
-			printf("FLASH write: size <0x%04x> address range <0x%04x-0x%04x>\n",
-			       (unsigned int)len,
-			       (unsigned int)addr_min,
-			       (unsigned int)addr_max);
-		}
-		else
-#endif
-		{
-			printf("FLASH write: size <0x%04x> linear address range <0x%05x-0x%05x>\n",
-			       (unsigned int)len,
-			       (unsigned int)(addr_min + hc12mcu_target.flash_linear_base),
-			       (unsigned int)(addr_max + hc12mcu_target.flash_linear_base));
-		}
-	}
-
-	cnt = 0;
-	t = progress_start("FLASH write: image");
-	for (i = 0; i < size; i += chunk)
-	{
-		for (j = 0; j < chunk; j += 4)
-		{
-			if (*((uint32_t *)&buf[i + j]) != 0xffffffff)
-				break;
-		}
-		if (j == chunk)
-			continue;
-		cnt += chunk;
-
-		cmd[0] = hc12mcu_linear_to_block(i);
-		cmd[1] = hc12mcu_linear_to_ppage(i);
-		uint16_host2be_buf(cmd + 2, (uint16_t)
-			(HCS12_FLASH_BANK_WINDOW_ADDR +
-			(i % HCS12_FLASH_BANK_WINDOW_SIZE)));
-		uint16_host2be_buf(cmd + 4, (uint16_t)chunk);
-
-		ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_WRITE, cmd, sizeof(cmd));
-		if (ret != 0)
-		{
-		  error_nl:
-			progress_stop(t, NULL, 0);
-			free(buf);
-			return ret;
-		}
-
-		ret = hc12lrae_tx(buf + i, chunk);
-		if (ret != 0)
-			goto error_nl;
-
-		b = hc12lrae_sum(buf + i, chunk);
-		ret = hc12lrae_tx(&b, 1);
-		if (ret != 0)
-			goto error_nl;
-
-		ret = hc12lrae_rx(&b, 1);
-		if (ret != 0)
-			goto error_nl;
-		if (b != HC12_AGENT_ERROR_NONE)
-		{
-			progress_stop(t, NULL, 0);
-			if (b == HC12_AGENT_ERROR_SUM)
-				error("communication failed, checksum error\n");
-			else
-				error("invalid response\n");
-			free(buf);
-			return ret;
-		}
-
-		progress_report(cnt, len);
-	}
-	progress_stop(t, "FLASH write: image", len);
-
-	free(buf);
 	return 0;
 }
 

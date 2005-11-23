@@ -139,6 +139,14 @@ SOURCE=.\hc12mem.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\hc12sm.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\hc12sm.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\serial.c
 # SUBTRACT CPP /YX
 # End Source File

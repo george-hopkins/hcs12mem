@@ -31,119 +31,12 @@
 /* globals */
 
 static hc12bdm_handler_t *hc12bdm_handler;
-static int hc12bdm_part_secured;
 static uint32_t hc12bdm_ram_entry;
-static uint32_t hc12bdm_ram_base;
-static uint32_t hc12bdm_ram_size;
 static int hc12bdm_agent_loaded;
 static uint16_t hc12bdm_agent_param;
 static uint16_t hc12bdm_agent_buf_addr;
 static uint16_t hc12bdm_agent_buf_len;
 static uint8_t hc12bdm_ppage;
-
-/* various options */
-
-static const char *hcs12_family_table[] =
-{
-	"D",
-	"H",
-	"B",
-	"C",
-	"T",
-	"E",
-	"U",
-	"reserved",
-	"NE",
-	"unknown",
-	"unknown",
-	"unknown",
-	"unknown",
-	"unknown",
-	"unknown",
-	"unknown"
-};
-
-static int hcs12_memory_table[] =
-{
-	256,
-	128,
-	64,
-	32,
-	512,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0
-};
-
-static uint16_t hcs12_reg_space_table[] =
-{
-	0x0400,
-	0x0800
-};
-
-static uint16_t hcs12_eeprom_space_table[] =
-{
-	0x0000,
-	0x0800,
-	0x1000,
-	0x2000
-};
-
-static uint16_t hcs12_ram_space_table[] =
-{
-	0x0800,
-	0x1000,
-	0x2000,
-	0x2000,
-	0x4000,
-	0x4000,
-	0x4000,
-	0x4000
-};
-
-static uint16_t hcs12_ram_size_table[] =
-{
-	0x0800,
-	0x1000,
-	0x1800,
-	0x2000,
-	0x2800,
-	0x3000,
-	0x3800,
-	0x4000
-};
-
-static const char *hcs12_rom_space_table[] =
-{
-	"0kB",
-	"16kB",
-	"48kB",
-	"64kB"
-};
-
-static const char *hcs12_page_space_table[] =
-{
-	"876kB/128kB",
-	"768kB/256kB",
-	"512kB/512kB",
-	"0kB/1MB"
-};
-
-static const char *hcs12_flash_prot_area_table[] =
-{
-	"2kB",
-	"4kB",
-	"8kB",
-	"16kB"
-};
 
 static const struct
 {
@@ -267,37 +160,13 @@ static int hc12bdm_clkdiv_init(void)
 static int hc12bdm_init(int verbose)
 {
 	int ret;
-	int i;
 	const char *ptr;
 	char *end;
 	unsigned long addr;
 	unsigned long val;
 	uint8_t bdm;
 	uint16_t id;
-	uint16_t mem;
-	uint8_t initrm;
-	uint8_t initrg;
-	uint8_t initee;
-	uint8_t misc;
-	uint8_t fprot;
-	uint8_t fsec;
-	uint8_t eprot;
-	uint16_t reg_space;
-	uint16_t reg_base;
-	uint16_t ram_space;
-	uint16_t eeprom_space;
 	uint32_t v;
-
-	if (verbose)
-	{
-		printf("target info <%s>\n"
-		       "target mcu <%s> family <%s> osc <%lu.%06lu MHz>\n",
-		       (const char *)hc12mcu_target.info_str,
-		       (const char *)hc12mcu_target.mcu_str,
-		       (const char *)hc12mcu_target.family_str,
-		       (unsigned long)(options.osc / 1000000),
-		       (unsigned long)(options.osc % 1000000));
-	}
 
 	/* reset target into single chip special mode */
 
@@ -341,15 +210,7 @@ static int hc12bdm_init(int verbose)
 		if (ret != 0)
 			return ret;
 
-		if (verbose)
-		{
-			printf("HCS12 part id <0x%04x> family <%s> memory <%ukB> mask <%u.%u>\n",
-			       (unsigned int)id,
-			       (const char *)hcs12_family_table[(id >> 12) & 0x000f],
-			       (unsigned int)(hcs12_memory_table[(id >> 8) & 0x000f]),
-			       (unsigned int)((id >> 4) & 0x000f),
-			       (unsigned int)(id & 0x000f));
-		}
+		hcs12mcu_partid(id, verbose);
 	}
 
 	hc12mem_target_info(NULL, TRUE);
@@ -380,165 +241,9 @@ static int hc12bdm_init(int verbose)
 			return ret;
 	}
 
-	ret = (*hc12bdm_handler->read_byte)(HCS12_IO_INITRG, &initrg);
+	hc12mcu_identify(verbose);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->read_byte)(HCS12_IO_INITRM, &initrm);
-	if (ret != 0)
-		return ret;
-	ret = (*hc12bdm_handler->read_byte)(HCS12_IO_INITEE, &initee);
-	if (ret != 0)
-		return ret;
-
-	reg_base = (uint16_t)((initrg & HCS12_IO_INITRG_REG) << 8);
-	hc12bdm_ram_base = (uint32_t)((initrm & HCS12_IO_INITRM_RAM) << 8);
-	hc12mcu_target.eeprom_base = (uint32_t)((initee & HCS12_IO_INITEE_EE) << 8);
-
-	if (hc12mcu_target.family >= HC12_FAMILY_HCS12)
-	{
-		ret = (*hc12bdm_handler->read_word)(HCS12_IO_MEMSIZ, &mem);
-		if (ret != 0)
-			return ret;
-		ret = (*hc12bdm_handler->read_byte)(HCS12_IO_MISC, &misc);
-		if (ret != 0)
-			return ret;
-		ret = (*hc12bdm_handler->read_byte)(HCS12_IO_FSEC, &fsec);
-		if (ret != 0)
-			return ret;
-
-		reg_space = hcs12_reg_space_table[(mem & HCS12_IO_MEMSIZ_REG_SW) >> 15];
-		ram_space = hcs12_ram_space_table[(mem & HCS12_IO_MEMSIZ_RAM_SW) >> 8];
-		hc12bdm_ram_size = (uint32_t)hcs12_ram_size_table[(mem & HCS12_IO_MEMSIZ_RAM_SW) >> 8];
-		if (hc12mem_target_param("ram_size", &hc12bdm_ram_size, hc12bdm_ram_size) != 0)
-			return EINVAL;
-		hc12bdm_ram_base &= ~(ram_space - 1);
-		if (initrm & HCS12_IO_INITRM_RAMHAL)
-			hc12bdm_ram_base = hc12bdm_ram_base + (uint32_t)ram_space - hc12bdm_ram_size;
-		eeprom_space = hcs12_eeprom_space_table[(mem & HCS12_IO_MEMSIZ_EEP_SW) >> 12];
-		hc12bdm_part_secured = (fsec & HCS12_FLASH_FSEC_SEC) == 0x02 ? FALSE : TRUE;
-	}
-	else
-	{
-		if (hc12mem_target_param("ram_size", &hc12bdm_ram_size, 0xffffffff) != 0)
-			return EINVAL;
-		hc12bdm_part_secured = FALSE;
-	}
-
-	if (hc12bdm_ram_size == 0xffffffff)
-	{
-		error("RAM size unknown\n");
-		return EINVAL;
-	}
-
-	if (hc12mcu_target.family == HC12_FAMILY_HC12 && verbose)
-	{
-		printf("HC12 register base <0x%04x>\n",
-		       (unsigned int)reg_base);
-		printf("HC12 RAM size <%ukB> address range <0x%04x-0x%04x>\n",
-		       (unsigned int)(hc12bdm_ram_size / 1024),
-		       (unsigned int)hc12bdm_ram_base,
-		       (unsigned int)(hc12bdm_ram_base + hc12bdm_ram_size - 1));
-		if (hc12mcu_target.eeprom_size == 0)
-			printf("HC12 EEPROM not present\n");
-		else
-		{
-			printf("HC12 EEPROM size <%ukB> state <%s> address range <0x%04x-0x%04x>\n",
-			       (unsigned int)(hc12mcu_target.eeprom_size / 1024),
-			       (const char *)((initee & HCS12_IO_INITEE_EEON) ? "enabled" : "disabled"),
-			       (unsigned int)hc12mcu_target.eeprom_base,
-			       (unsigned int)(hc12mcu_target.eeprom_base + hc12mcu_target.eeprom_size - 1));
-		}
-	}
-
-	if (hc12mcu_target.family >= HC12_FAMILY_HCS12 && verbose)
-	{
-		ret = (*hc12bdm_handler->read_byte)(HCS12_IO_EPROT, &eprot);
-		if (ret != 0)
-			return ret;
-
-		printf("HCS12 part security <%s> backdoor key <%s>\n",
-		       (const char *)(hc12bdm_part_secured ? "on" : "off"),
-		       (const char *)((fsec & HCS12_FLASH_FSEC_KEYEN) ? "enabled" : "disabled"));
-		printf("HCS12 register space <%ukB> address range <0x%04x-0x%04x>\n",
-		       (unsigned int)(reg_space / 1024),
-		       (unsigned int)reg_base,
-		       (unsigned int)(reg_base + reg_space - 1));
-		printf("HCS12 RAM size <%ukB> space <%ukB> align <%s> address range <0x%04x-0x%04x>\n",
-		       (unsigned int)(hc12bdm_ram_size / 1024),
-		       (unsigned int)(ram_space / 1024),
-		       (const char *)((initrm & HCS12_IO_INITRM_RAMHAL) ? "high" : "low"),
-		       (unsigned int)hc12bdm_ram_base,
-		       (unsigned int)(hc12bdm_ram_base + hc12bdm_ram_size - 1));
-		if (hc12mcu_target.eeprom_size == 0)
-			printf("HCS12 EEPROM not present\n");
-		else
-		{
-			printf("HCS12 EEPROM module <%s> state <%s>\n",
-			       (const char *)hc12mcu_target.eeprom_module_str,
-			       (const char *)((initee & HCS12_IO_INITEE_EEON) ? "enabled" : "disabled"));
-			printf("HCS12 EEPROM size <%ukB> space <%ukB> address range <0x%04x-0x%04x>\n",
-			       (unsigned int)(hc12mcu_target.eeprom_size / 1024),
-			       (unsigned int)(eeprom_space / 1024),
-			       (unsigned int)hc12mcu_target.eeprom_base,
-			       (unsigned int)(hc12mcu_target.eeprom_base + hc12mcu_target.eeprom_size - 1));
-			if (eprot & HCS12_IO_EPROT_EPDIS)
-			{
-				printf("HCS12 EEPROM protection all <%s> address range <off>\n",
-				       (const char *)((eprot & HCS12_IO_EPROT_EPOPEN) ? "off" : "on"));
-			}
-			else
-			{
-				printf("HCS12 EEPROM protection all <%s> address range <0x%04x-0x%04x %uB%s>\n",
-				       (const char *)((eprot & HCS12_IO_EPROT_EPOPEN) ? "off" : "on"),
-				       (unsigned int)(hc12mcu_target.eeprom_base + hc12mcu_target.eeprom_size -
-						      hcs12_eeprom_prot_area_table[eprot & HCS12_IO_EPROT_EP].size),
-				       (unsigned int)(hc12mcu_target.eeprom_base + hc12mcu_target.eeprom_size - 1),
-				       (unsigned int)hcs12_eeprom_prot_area_table[eprot & HCS12_IO_EPROT_EP].size,
-				       (const char *)((eprot & HCS12_IO_EPROT_EPOPEN) ? "" : " ignored"));
-			}
-		}
-		printf("HCS12 FLASH module <%s> state <%s> ROMHM <%s>\n",
-		       (const char *)hc12mcu_target.flash_module_str,
-		       (const char *)((misc & HCS12_IO_MISC_ROMON) ? "enabled" : "disabled"),
-		       (const char *)((misc & HCS12_IO_MISC_ROMHM) ? "yes" : "no"));
-		printf("HCS12 FLASH size <%ukB> space <%s> off-chip/on-chip space <%s>\n",
-		       (unsigned int)(hc12mcu_target.flash_size / 1024),
-		       (const char *)hcs12_rom_space_table[(mem & HCS12_IO_MEMSIZ_ROM_SW) >> 6],
-		       (const char *)hcs12_page_space_table[(mem & HCS12_IO_MEMSIZ_PAG_SW) >> 0]);
-
-		for (i = 0; i < hc12mcu_target.flash_blocks; ++ i)
-		{
-			if (hc12mcu_target.flash_blocks > 1)
-			{
-				ret = (*hc12bdm_handler->write_byte)(HCS12_IO_FCNFG, (uint8_t)i);
-				if (ret != 0)
-					return ret;
-			}
-			ret = (*hc12bdm_handler->read_byte)(HCS12_IO_FPROT, &fprot);
-			if (ret != 0)
-				return ret;
-
-			if (hc12mcu_target.flash_blocks == 1)
-			{
-				printf("HCS12 FLASH protection all <%s> high area <%s> low area <%s>\n",
-				       (const char *)((fprot & HCS12_FLASH_FPROT_FPOPEN) ? "off" : "on"),
-				       (const char *)((fprot & HCS12_FLASH_FPROT_FPHS) ? "off" :
-						      hcs12_flash_prot_area_table[(fprot & HCS12_FLASH_FPROT_FPHS) >> 3]),
-				       (const char *)((fprot & HCS12_FLASH_FPROT_FPLS) ? "off" :
-						      hcs12_flash_prot_area_table[(fprot & HCS12_FLASH_FPROT_FPLS) >> 0]));
-			}
-			else
-			{
-				printf("HCS12 FLASH block <%u> protection all <%s> high area <%s> low area <%s>\n",
-				       (unsigned int)i,
-				       (const char *)((fprot & HCS12_FLASH_FPROT_FPOPEN) ? "off" : "on"),
-				       (const char *)((fprot & HCS12_FLASH_FPROT_FPHS) ? "off" :
-						      hcs12_flash_prot_area_table[(fprot & HCS12_FLASH_FPROT_FPHS) >> 3]),
-				       (const char *)((fprot & HCS12_FLASH_FPROT_FPLS) ? "off" :
-						      hcs12_flash_prot_area_table[(fprot & HCS12_FLASH_FPROT_FPLS) >> 0]));
-			}
-		}
-	}
 
 	if (verbose)
 		printf("\n");
@@ -578,10 +283,10 @@ static int hc12bdm_reset(void)
 
 static uint32_t hc12bdm_ram_address(uint32_t addr)
 {
-	if (addr < hc12bdm_ram_base ||
-	    addr >= hc12bdm_ram_base + hc12bdm_ram_size)
-		return hc12bdm_ram_size;
-	return addr - hc12bdm_ram_base;
+	if (addr < hc12mcu_target.ram_base ||
+	    addr >= hc12mcu_target.ram_base + hc12mcu_target.ram_size)
+		return hc12mcu_target.ram_size;
+	return addr - hc12mcu_target.ram_base;
 }
 
 
@@ -610,7 +315,7 @@ static int hc12bdm_ram_load(const char *file, int agent)
 	if (!agent)
 		hc12bdm_agent_loaded = FALSE;
 
-	buf = malloc(hc12bdm_ram_size);
+	buf = malloc(hc12mcu_target.ram_size);
 	if (buf == NULL)
 	{
 		error("not enough memory\n");
@@ -626,7 +331,7 @@ static int hc12bdm_ram_load(const char *file, int agent)
 		       (const char *)file);
 	}
 
-	ret = srec_read(file, info, sizeof(info), buf, hc12bdm_ram_size,
+	ret = srec_read(file, info, sizeof(info), buf, hc12mcu_target.ram_size,
 		&entry, &addr_min, &addr_max, hc12bdm_ram_address);
 	if (ret != 0)
 	{
@@ -642,9 +347,9 @@ static int hc12bdm_ram_load(const char *file, int agent)
 	}
 
 	len = addr_max - addr_min + 1;
-	addr_min += hc12bdm_ram_base;
-	addr_max += hc12bdm_ram_base;
-	hc12bdm_ram_entry = entry + hc12bdm_ram_base;
+	addr_min += hc12mcu_target.ram_base;
+	addr_max += hc12mcu_target.ram_base;
+	hc12bdm_ram_entry = entry + hc12mcu_target.ram_base;
 
 	if (options.verbose)
 	{
@@ -673,7 +378,7 @@ static int hc12bdm_ram_load(const char *file, int agent)
 	{
 		ret = (*hc12bdm_handler->write_byte)(
 			(uint16_t)(addr_min + i),
-			buf[addr_min - hc12bdm_ram_base + i]);
+			buf[addr_min - hc12mcu_target.ram_base + i]);
 		if (ret != 0)
 		{
 			progress_stop(t, NULL, 0);
@@ -706,7 +411,7 @@ static int hc12bdm_ram_run(const char *file)
 {
 	int ret;
 
-	if (hc12bdm_part_secured && !options.force)
+	if (hc12mcu_target.secured && !options.force)
 	{
 		printf("RAM run: MCU secured (-f option forces loading and running the program)\n");
 		return 0;
@@ -1140,7 +845,7 @@ static int hc12bdm_unsecure(void)
 		return EINVAL;
 	}
 
-	if (!hc12bdm_part_secured && !options.force)
+	if (!hc12mcu_target.secured && !options.force)
 	{
 		printf("unsecure: MCU not secured (-f option forces unsecuring procedure)\n");
 		return 0;
@@ -1201,7 +906,7 @@ static int hc12bdm_secure(void)
 		return EINVAL;
 	}
 
-	if (hc12bdm_part_secured && !options.force)
+	if (hc12mcu_target.secured && !options.force)
 	{
 		printf("secure: MCU already secured (-f option forces securing procedure)\n");
 		return 0;
@@ -1422,7 +1127,7 @@ static int hc12bdm_eeprom_erase(void)
 		return EINVAL;
 	}
 
-	if (hc12bdm_part_secured && !options.force)
+	if (hc12mcu_target.secured && !options.force)
 	{
 		error("EEPROM erase not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -1514,7 +1219,7 @@ static int hc12bdm_eeprom_read(const char *file)
 		return EINVAL;
 	}
 
-	if (hc12bdm_part_secured && !options.force)
+	if (hc12mcu_target.secured && !options.force)
 	{
 		error("EEPROM read not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -1668,7 +1373,7 @@ static int hc12bdm_eeprom_write(const char *file)
 		return EINVAL;
 	}
 
-	if (hc12bdm_part_secured && !options.force)
+	if (hc12mcu_target.secured && !options.force)
 	{
 		error("EEPROM write not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -1870,7 +1575,7 @@ static int hc12bdm_eeprom_protect(const char *opt)
 		return EINVAL;
 	}
 
-	if (hc12bdm_part_secured && !options.force)
+	if (hc12mcu_target.secured && !options.force)
 	{
 		error("EEPROM protect not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -2019,7 +1724,7 @@ static int hc12bdm_flash_erase(int unsecure)
 		return EINVAL;
 	}
 
-	if (hc12bdm_part_secured && !options.force)
+	if (hc12mcu_target.secured && !options.force)
 	{
 		error("FLASH erase not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -2319,7 +2024,7 @@ static int hc12bdm_flash_read(const char *file)
 		return EINVAL;
 	}
 
-	if (hc12bdm_part_secured && !options.force)
+	if (hc12mcu_target.secured && !options.force)
 	{
 		error("FLASH read not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -2396,6 +2101,9 @@ static int hc12bdm_flash_read(const char *file)
 		adc = hc12mcu_flash_write_address_bl;
 	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_PPAGE)
 		adc = hc12mcu_flash_write_address_bp;
+	else
+		adc = NULL;
+
 	ret = srec_write(file, "FLASH image", 0, size, buf, size - 2, adc,
 		!options.include_erased, options.srec_size);
 	if (ret != 0)
@@ -2452,7 +2160,7 @@ static int hc12bdm_flash_write(const char *file)
 		return EINVAL;
 	}
 
-	if (hc12bdm_part_secured && !options.force)
+	if (hc12mcu_target.secured && !options.force)
 	{
 		error("FLASH write not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -2494,6 +2202,8 @@ static int hc12bdm_flash_write(const char *file)
 		adc = hc12mcu_flash_read_address_bl;
 	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_PPAGE)
 		adc = hc12mcu_flash_read_address_bp;
+	else
+		adc = NULL;
 
 	ret = srec_read(file, info, sizeof(info),
 		buf, size, NULL, &addr_min, &addr_max, adc);
@@ -2692,6 +2402,11 @@ static int hc12bdm_open(void)
 	ret = (*hc12bdm_handler->open)();
 	if (ret != 0)
 		return ret;
+
+	hc12mcu_target.read_byte = hc12bdm_handler->read_byte;
+	hc12mcu_target.read_word = hc12bdm_handler->read_word;
+	hc12mcu_target.write_byte = hc12bdm_handler->write_byte;
+	hc12mcu_target.write_word = hc12bdm_handler->write_word;
 
 	ret = hc12bdm_init(options.verbose);
 	if (ret != 0)

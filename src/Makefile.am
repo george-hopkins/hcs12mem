@@ -38,6 +38,8 @@ hc12mem_SOURCES = \
 	hc12bdm.h \
 	hc12lrae.c \
 	hc12lrae.h \
+	hc12sm.c \
+	hc12sm.h \
 	hc12mcu.c \
 	hc12mcu.h \
 	hc12mem.c \

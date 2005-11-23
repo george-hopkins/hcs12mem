@@ -72,7 +72,7 @@ binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
 am_hc12mem_OBJECTS = sys.$(OBJEXT) serial.$(OBJEXT) srec.$(OBJEXT) \
 	bdm12pod.$(OBJEXT) hc12bdm.$(OBJEXT) hc12lrae.$(OBJEXT) \
-	hc12mcu.$(OBJEXT) hc12mem.$(OBJEXT)
+	hc12sm.$(OBJEXT) hc12mcu.$(OBJEXT) hc12mem.$(OBJEXT)
 hc12mem_OBJECTS = $(am_hc12mem_OBJECTS)
 hc12mem_LDADD = $(LDADD)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
@@ -184,6 +184,8 @@ hc12mem_SOURCES = \
 	hc12bdm.h \
 	hc12lrae.c \
 	hc12lrae.h \
+	hc12sm.c \
+	hc12sm.h \
 	hc12mcu.c \
 	hc12mcu.h \
 	hc12mem.c \
@@ -267,6 +269,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hc12lrae.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hc12mcu.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hc12mem.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hc12sm.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/serial.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/srec.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sys.Po@am__quote@

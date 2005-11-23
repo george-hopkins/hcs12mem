@@ -509,7 +509,10 @@ int serial_write(serial_t *s, const void *data, size_t *size, unsigned long time
 		if (timeout != 0xffffffff)
 		{
 			if (serial_timeout(&start, &timeout, &sto))
-				return ETIMEDOUT;
+			{
+				errno = ETIMEDOUT;
+				goto error;
+			}
 
  			/* check file descriptor */
 
@@ -517,7 +520,10 @@ int serial_write(serial_t *s, const void *data, size_t *size, unsigned long time
 			FD_SET(s->tty, &fdset);
 			ret = select(s->tty + 1, (fd_set *)NULL, &fdset, (fd_set *)NULL, &sto);
 			if (ret == 0)
-				return ETIMEDOUT;
+			{
+				errno = ETIMEDOUT;
+				goto error;
+			}
 			if (ret == -1)
 			{
 				if (errno == EINTR || errno == EAGAIN)

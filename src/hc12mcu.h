@@ -158,6 +158,8 @@
 
 typedef struct
 {
+	/* values read from target description */
+
 	const char *info_str;
 	const char *mcu_str;
 	const char *family_str;
@@ -165,7 +167,6 @@ typedef struct
 	uint32_t ram_size;
 	const char *eeprom_module_str;
 	int eeprom_module;
-	uint32_t eeprom_base;
 	uint32_t eeprom_size;
 	const char *flash_module_str;
 	int flash_module;
@@ -179,12 +180,36 @@ typedef struct
 	uint32_t ppage_base;
 	uint32_t ppage_count;
 	uint32_t ppage_default;
+
+	/* values read from target device */
+
+	uint32_t reg_base;
+	uint32_t reg_space;
+	uint32_t reg_size;
+	uint32_t ram_base;
+	uint32_t ram_space;
+	uint32_t eeprom_base;
+	uint32_t eeprom_space;
+	int secured;
+
+	/* direct memory access */
+
+	int (*read_byte)(uint16_t addr, uint8_t *v);
+	int (*read_word)(uint16_t addr, uint16_t *v);
+	int (*write_byte)(uint16_t addr, uint8_t v);
+	int (*write_word)(uint16_t addr, uint16_t v);
 }
 hc12mcu_target_t;
 
 extern hc12mcu_target_t hc12mcu_target;
 
 extern int hc12mcu_target_parse(void);
+extern void hc12mcu_show_partid(uint16_t id);
+extern void hcs12mcu_partid(uint16_t id, int verbose);
+extern int hc12mcu_identify(int verbose);
+
+#define hc12mcu_flash_addr_window(addr) \
+	(HCS12_FLASH_BANK_WINDOW_ADDR + ((addr) % HCS12_FLASH_BANK_WINDOW_SIZE))
 
 extern uint32_t hc12mcu_flash_read_address_nb(uint32_t addr);
 extern uint32_t hc12mcu_flash_read_address_bl(uint32_t addr);
@@ -195,5 +220,16 @@ extern uint32_t hc12mcu_flash_write_address_bp(uint32_t addr);
 extern uint8_t hc12mcu_linear_to_ppage(uint32_t linear);
 extern uint8_t hc12mcu_linear_to_block(uint32_t linear);
 extern uint8_t hc12mcu_block_to_ppage_base(uint32_t block);
+
+extern int hc12mcu_flash_read(const char *file, size_t chunk,
+	int (*f)(uint32_t addr, size_t size, void *buf));
+extern int hc12mcu_flash_write(const char *file, size_t chunk,
+	int (*f)(uint32_t addr, size_t size, const void *buf));
+extern int hc12mcu_eeprom_read(const char *file, size_t chunk,
+	int (*f)(uint16_t addr, size_t size, void *buf));
+extern int hc12mcu_eeprom_write(const char *file, size_t chunk,
+	int (*f)(uint16_t addr, size_t size, const void *buf));
+extern int hc12mcu_eeprom_protect(const char *opt,
+	int (*eeww)(uint16_t addr, uint16_t v));
 
 #endif /* __HC12MCU_H */

@@ -19,7 +19,7 @@ dnl   along with this program; if not, write to the Free Software
 dnl   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 AC_INIT(src/hc12mem.c)
-AM_INIT_AUTOMAKE([hc12mem], [1.1])
+AM_INIT_AUTOMAKE([hc12mem], [1.2])
 AM_CONFIG_HEADER(config.h)
 AC_CANONICAL_HOST
 AC_PROG_MAKE_SET
@@ -32,21 +32,17 @@ AC_PROG_LN_S
 
 dnl additional flags for compiler
 
-TARGET_CC=$CC
-TARGET_CFLAGS=
-TARGET_LDFLAGS=$LDFLAGS
-TARGET_LDLIBS=
 SYSTEM=`uname -s`
 if test "$SYSTEM" = "SunOS"; then
   AC_DEFINE(SYSTEM_SUNOS, 1, [System name])
-  TARGET_CFLAGS="$TARGET_CFLAGS -D__EXTENSIONS__"
+  CFLAGS="$CFLAGS -D__EXTENSIONS__"
 fi
 if test "$SYSTEM" = "FreeBSD"; then
   AC_DEFINE(SYSTEM_FREEBSD, 1, [System name])
 fi
 if test "$SYSTEM" = "Linux"; then
   AC_DEFINE(SYSTEM_LINUX, 1, [System name])
-  TARGET_CFLAGS="$TARGET_CFLAGS -D_GNU_SOURCE"
+  CFLAGS="$CFLAGS -D_GNU_SOURCE"
 fi
 if test "$SYSTEM" != "${SYSTEM#CYGWIN}"; then
   AC_DEFINE(SYSTEM_CYGWIN, 1, [System name])
@@ -55,11 +51,10 @@ if test "$SYSTEM" != "${SYSTEM#CYGWIN}"; then
 fi
 if test "$GCC" = "yes"; then
   if test "$CYGWIN" = "1"; then
-    TARGET_CFLAGS="$TARGET_CFLAGS -pipe -pedantic -Wall -fsigned-char -g"
+    CFLAGS="$CFLAGS -pedantic -Wall -fsigned-char"
   else
-    TARGET_CFLAGS="$TARGET_CFLAGS -pipe -ansi -pedantic -Wall -fsigned-char -g"
+    CFLAGS="$CFLAGS -ansi -pedantic -Wall -fsigned-char"
   fi
-  TARGET_CFLAGS="$TARGET_CFLAGS -Wno-unused-function"
 fi
 
 dnl enable debugging code
@@ -69,7 +64,7 @@ AC_ARG_ENABLE([debug],
   ,enable_debug=no)
 if test "$enable_debug" = "yes" ; then
   AC_DEFINE(DEBUG, 1, [Enable debugging code])
-  TARGET_CFLAGS="$TARGET_CFLAGS -g"
+  CFLAGS="$CFLAGS -g"
 else
   AC_DEFINE(NDEBUG, 1, [Disable debugging code])
 fi
@@ -105,14 +100,7 @@ ACX_OPTRESET
 
 dnl export configuration to Makefiles
 
-CC=$TARGET_CC
-AC_SUBST(CC)
-CFLAGS=$TARGET_CFLAGS
 AC_SUBST(CFLAGS)
-LDFLAGS=$TARGET_LDFLAGS
-AC_SUBST(LDFLAGS)
-LIBS=$TARGET_LIBS
-AC_SUBST(LIBS)
 
 dnl Makefiles to generate
 

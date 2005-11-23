@@ -1,3 +1,16 @@
+hc12mem 1.2 (2005.11.23)
+
+- support for Freescale's serial monitor - Application Note AN2548,
+  using this monitor, hc12mem can:
+  - erase,read,write,protect EEPROM
+  - erase,read,write FLASH
+  - reset target
+  - no support for securing/unsecuring whole MCU
+- detailed report for FLASH writing with list of address ranges defined
+  for programming
+- improved FLASH writing logic - skipping empty areas even if defined
+  in S-record file
+
 hc12mem 1.1 (2005.11.17)
 
 - support for Freescale's LRAE (Load RAM And Execute) bootloader,
