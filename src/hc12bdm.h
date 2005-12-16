@@ -23,13 +23,21 @@
 #ifndef __HC12BDM_H
 #define __HC12BDM_H
 
+/* chunk sizes for direct memory read/write via BDM */
+
+#define HC12BDM_RAM_LOAD_CHUNK    256
+#define HC12BDM_EEPROM_READ_CHUNK 256
+#define HC12BDM_FLASH_READ_CHUNK  512
+#define HC12BDM_FLASH_WRITE_CHUNK  16 /* for direct writing ! */
+
 /* HC12 CPU registers */
 
-#define HC12BDM_REG_PC 0
-#define HC12BDM_REG_D  1
-#define HC12BDM_REG_X  2
-#define HC12BDM_REG_Y  3
-#define HC12BDM_REG_SP 4
+#define HC12BDM_REG_PC  0
+#define HC12BDM_REG_D   1
+#define HC12BDM_REG_X   2
+#define HC12BDM_REG_Y   3
+#define HC12BDM_REG_SP  4
+#define HC12BDM_REG_CCR 5
 
 /* HCS12 BDM registers */
 
@@ -112,8 +120,8 @@ typedef struct
 	int (*write_bd_word)(uint16_t addr, uint16_t v);
 	int (*write_byte)(uint16_t addr, uint8_t v);
 	int (*write_word)(uint16_t addr, uint16_t v);
-	int (*read_mem)(uint16_t addr, uint8_t *buf, uint16_t len);
-	int (*write_mem)(uint16_t addr, const uint8_t *buf, uint16_t len);
+	int (*read_mem)(uint16_t addr, void *buf, size_t len);
+	int (*write_mem)(uint16_t addr, const void *buf, size_t len);
 
 	/* firmware commands */
 
@@ -129,5 +137,6 @@ typedef struct
 hc12bdm_handler_t;
 
 extern hc12mem_target_handler_t hc12mem_target_handler_bdm12pod;
+extern hc12mem_target_handler_t hc12mem_target_handler_tbdml;
 
 #endif /* __HC12BDM_H */

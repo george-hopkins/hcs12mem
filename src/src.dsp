@@ -172,5 +172,25 @@ SOURCE=.\sys.c
 
 SOURCE=.\sys.h
 # End Source File
+# Begin Source File
+
+SOURCE=.\sys_usb.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\sys_usb.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\tbdml.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\tbdml.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\tbdml_comm.h
+# End Source File
 # End Target
 # End Project

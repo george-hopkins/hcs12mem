@@ -23,12 +23,13 @@
 #include "sys.h"
 
 #if SYS_TYPE_UNIX
-#  include <sys/time.h>
+# include <sys/time.h>
+# include <dlfcn.h>
 #endif
 
 #if SYS_TYPE_WIN32
-#  include <sys/types.h>
-#  include <sys/timeb.h>
+# include <sys/types.h>
+# include <sys/timeb.h>
 #endif
 
 
@@ -95,6 +96,10 @@ unsigned long sys_get_ms(void)
 }
 
 
+/*
+ *  access() function for win32
+ */
+
 #if SYS_TYPE_WIN32
 
 int access(const char *path, int mode)
@@ -136,6 +141,10 @@ size_t strlcpy(char *dst, const char *src, size_t dst_size)
 
 #endif
 
+
+/*
+ *  snprintf() and vsnprintf() for win32
+ */
 
 #if SYS_TYPE_WIN32
 
@@ -190,98 +199,161 @@ uint16_t uint16_swap(uint16_t x)
 
 
 /*
- *  convert data bytes from buffer big-endian data to host 16-bit word
+ *  swap bytes from buffer to 16-bit word
  *
  *  in:
- *    buf - buffer with big-endian data
+ *    buf - input buffer
  *  out:
  *    converted result
  */
 
-uint16_t uint16_be2host_buf(const void *buf)
+uint16_t uint16_swap_from_buf(const void *buf)
 {
 	uint16_t v;
 
-#if SYS_ARCH_LITTLE_ENDIAN
 	((uint8_t *)(&v))[0] = ((uint8_t *)buf)[1];
 	((uint8_t *)(&v))[1] = ((uint8_t *)buf)[0];
-#endif
-#if SYS_ARCH_BIG_ENDIAN
-	((uint8_t *)(&v))[0] = ((uint8_t *)buf)[0];
-	((uint8_t *)(&v))[1] = ((uint8_t *)buf)[1];
-#endif
-
 	return v;
 }
 
 
 /*
- *  convert data bytes from buffer little-endian data to host 16-bit word
+ *  swap bytes from 16-bit word to buffer
  *
  *  in:
- *    buf - buffer with big-endian data
- *  out:
- *    converted result
- */
-
-uint16_t uint16_le2host_buf(const void *buf)
-{
-	uint16_t v;
-
-#if SYS_ARCH_LITTLE_ENDIAN
-	((uint8_t *)(&v))[0] = ((uint8_t *)buf)[0];
-	((uint8_t *)(&v))[1] = ((uint8_t *)buf)[1];
-#endif
-#if SYS_ARCH_BIG_ENDIAN
-	((uint8_t *)(&v))[0] = ((uint8_t *)buf)[1];
-	((uint8_t *)(&v))[1] = ((uint8_t *)buf)[0];
-#endif
-
-	return v;
-}
-
-
-/*
- *  convert host 16-bit word into big-endian buffer
- *
- *  in:
- *    buf - target buffer for big-endian data
+ *    buf - output buffer
  *    v - value to convert
  *  out:
  *    void
  */
 
-void uint16_host2be_buf(void *buf, uint16_t v)
+void uint16_swap_to_buf(void *buf, uint16_t v)
 {
-#if SYS_ARCH_LITTLE_ENDIAN
 	((uint8_t *)buf)[0] = ((uint8_t *)(&v))[1];
 	((uint8_t *)buf)[1] = ((uint8_t *)(&v))[0];
-#endif
-#if SYS_ARCH_BIG_ENDIAN
-	((uint8_t *)buf)[0] = ((uint8_t *)(&v))[0];
-	((uint8_t *)buf)[1] = ((uint8_t *)(&v))[1];
-#endif
 }
 
 
 /*
- *  convert host 16-bit word into little-endian buffer
- *
- *  in:
- *    buf - target buffer for big-endian data
- *    v - value to convert
- *  out:
- *    void
+ *  dynamic link libraries under unix
  */
 
-void uint16_host2le_buf(void *buf, uint16_t v)
+#if SYS_TYPE_UNIX
+
+int sys_dl_open(sys_dl_t *dl, const char *name)
 {
-#if SYS_ARCH_LITTLE_ENDIAN
-	((uint8_t *)buf)[0] = ((uint8_t *)(&v))[0];
-	((uint8_t *)buf)[1] = ((uint8_t *)(&v))[1];
-#endif
-#if SYS_ARCH_BIG_ENDIAN
-	((uint8_t *)buf)[0] = ((uint8_t *)(&v))[1];
-	((uint8_t *)buf)[1] = ((uint8_t *)(&v))[0];
-#endif
+	dl->desc = dlopen(name, RTLD_NOW);
+	if (dl->desc == NULL)
+		return sys_get_error();
+	return 0;
 }
+
+
+int sys_dl_close(sys_dl_t *dl)
+{
+	if (dl->desc != NULL)
+	{
+		if (dlclose(dl->desc) != 0)
+			return sys_get_error();
+	}
+	return 0;
+}
+
+
+int sys_dl_get(sys_dl_t *dl, const char *symbol, void **ptr)
+{
+	*ptr = dlsym(dl->desc, symbol);
+	if (*ptr == NULL)
+		return sys_get_error();
+	return 0;
+}
+
+
+int sys_dl_func(sys_dl_t *dl, const char *symbol, sys_dl_func_t *func)
+{
+#if HAVE_DLFUNC
+	*func = (sys_dl_func_t)dlfunc(dl->desc, symbol);
+#else
+	*func = (sys_dl_func_t)dlsym(dl->desc, symbol);
+#endif
+	if (*func == NULL)
+		return sys_get_error();
+	return 0;
+}
+
+#endif
+
+
+/*
+ *  dynamic link libraries under win32
+ */
+
+#if SYS_TYPE_WIN32
+
+int sys_dl_open(sys_dl_t *dl, const char *name)
+{
+	dl->handle = LoadLibrary(name);
+	if (dl->handle == NULL)
+		return sys_get_error();
+	return 0;
+}
+
+
+int sys_dl_close(sys_dl_t *dl)
+{
+	if (dl->handle != NULL)
+	{
+		if (FreeLibrary(dl->handle) == FALSE)
+			return sys_get_error();
+	}
+	return 0;
+}
+
+
+int sys_dl_get(sys_dl_t *dl, const char *symbol, void **ptr)
+{
+	*ptr = (void *)GetProcAddress(dl->handle, symbol);
+	if (*ptr == NULL)
+		return sys_get_error();
+	return 0;
+}
+
+
+int sys_dl_func(sys_dl_t *dl, const char *symbol, sys_dl_func_t *func)
+{
+	*func = (sys_dl_func_t)GetProcAddress(dl->handle, symbol);
+	if (*func == NULL)
+		return sys_get_error();
+	return 0;
+}
+
+#endif
+
+
+/* get string for given error */
+
+#if SYS_TYPE_WIN32
+
+char *strerror(int error)
+{
+	static char msg[256];
+	const char *sysbuf = NULL;
+	char *ptr;
+
+	if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+	    NULL, error, 0, (LPTSTR)&sysbuf, 0, NULL) != 0)
+	{
+		strlcpy(msg, sysbuf, sizeof(msg));
+		LocalFree((HLOCAL)sysbuf);
+		for (ptr = msg + strlen(msg); ptr > msg && (ptr[-1] == '\r' || ptr[-1] == '\n'); -- ptr)
+		     ptr[-1] = '\0';
+	}
+	else
+	{
+		snprintf(msg, sizeof(msg), "unknown error (code #%d)", error);
+	}
+
+	return msg;
+}
+
+#endif

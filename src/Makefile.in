@@ -70,9 +70,10 @@ CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
-am_hc12mem_OBJECTS = sys.$(OBJEXT) serial.$(OBJEXT) srec.$(OBJEXT) \
-	bdm12pod.$(OBJEXT) hc12bdm.$(OBJEXT) hc12lrae.$(OBJEXT) \
-	hc12sm.$(OBJEXT) hc12mcu.$(OBJEXT) hc12mem.$(OBJEXT)
+am_hc12mem_OBJECTS = sys.$(OBJEXT) serial.$(OBJEXT) sys_usb.$(OBJEXT) \
+	srec.$(OBJEXT) tbdml.$(OBJEXT) bdm12pod.$(OBJEXT) \
+	hc12bdm.$(OBJEXT) hc12lrae.$(OBJEXT) hc12sm.$(OBJEXT) \
+	hc12mcu.$(OBJEXT) hc12mem.$(OBJEXT)
 hc12mem_OBJECTS = $(am_hc12mem_OBJECTS)
 hc12mem_LDADD = $(LDADD)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
@@ -176,8 +177,13 @@ hc12mem_SOURCES = \
 	sys.h \
 	serial.c \
 	serial.h \
+	sys_usb.c \
+	sys_usb.h \
 	srec.c \
 	srec.h \
+	tbdml.c \
+	tbdml.h \
+	tbdml_comm.h \
 	bdm12pod.c \
 	bdm12pod.h \
 	hc12bdm.c \
@@ -194,6 +200,8 @@ hc12mem_SOURCES = \
 EXTRA_DIST = \
 	getopt_own.c \
 	getopt_own.h \
+	libusb/libusbwin32.h \
+	libusb/libusbunix.h \
 	src.dsp
 
 MAINTAINERCLEANFILES = Makefile.in
@@ -273,6 +281,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/serial.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/srec.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sys.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sys_usb.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tbdml.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -338,6 +348,7 @@ distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 
 distdir: $(DISTFILES)
+	$(mkdir_p) $(distdir)/libusb
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \

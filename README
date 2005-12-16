@@ -2,8 +2,11 @@ hc12mem is a command line tool for reading/writing HCS12 MCU memories.
 
 Communication with target device:
 * BDM - Background Debug Module, via special interface called BDM POD
-  (currently supported ones: Kevin Ross's BDM12POD, Parek Peca's PODEX
-  and my own improved version of PODEX)
+  Currently supported ones are:
+  - Daniel Malik's TBDML
+  - Kevin Ross's BDM12POD
+  - Parek Peca's PODEX
+  - my own improved version of PODEX
 * LRAE - Freescale's bootloader, connection via serial port (see Freescale's
   Application Note AN2546)
 * Freescale's serial monitor, connection via serial port (see Freescale's
@@ -32,6 +35,8 @@ Under FreeBSD, use gmake instead of make.
 
 For successful compilation, installation of GNU gcc for HC11/HC12 is not
 required anymore, because target agents are included in S-record files form.
+
+Using TBDML as target interface requires installation of libusb.
 
 For usage help, see `man hc12mem`
 

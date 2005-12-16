@@ -161,12 +161,14 @@
 
 #define sys_get_error() (int)GetLastError()
 #define sys_set_error(n) SetLastError((DWORD)(n))
+extern char *strerror(int error);
 
 #define ETIMEDOUT ERROR_TIMEOUT
 #define ENOTSUP   ERROR_NOT_SUPPORTED
 #define EINVAL    ERROR_INVALID_PARAMETER
 #define ENOMEM    ERROR_NOT_ENOUGH_MEMORY
 #define EIO       ERROR_IO_DEVICE
+#define ENOENT    ERROR_FILE_NOT_FOUND
 
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
@@ -206,26 +208,60 @@ typedef unsigned long   uintptr_t;
 extern size_t strlcpy(char *dst, const char *src, size_t dst_size);
 #endif
 
-extern uint16_t uint16_be2host_buf(const void *buf);
-extern uint16_t uint16_le2host_buf(const void *buf);
-extern void uint16_host2be_buf(void *buf, uint16_t v);
-extern void uint16_host2le_buf(void *buf, uint16_t v);
 extern uint16_t uint16_swap(uint16_t x);
+extern uint16_t uint16_swap_from_buf(const void *buf);
+extern void uint16_swap_to_buf(void *buf, uint16_t v);
 
 #if SYS_ARCH_LITTLE_ENDIAN
 #  define uint16_le2host(x) (x)
 #  define uint16_host2le(x) (x)
 #  define uint16_be2host uint16_swap
 #  define uint16_host2be uint16_swap
+#  define uint16_le2host_from_buf(buf) (*((uint16_t *)(buf)))
+#  define uint16_host2le_from_buf(buf) (*((uint16_t *)(buf)))
+#  define uint16_be2host_from_buf uint16_swap_from_buf
+#  define uint16_host2be_from_buf uint16_swap_from_buf
+#  define uint16_host2le_to_buf(buf,v) do { (*((uint16_t *)(buf))) = v; } while (0);
+#  define uint16_le2host_to_buf(buf,v) do { (*((uint16_t *)(buf))) = v; } while (0);
+#  define uint16_host2be_to_buf uint16_swap_to_buf
+#  define uint16_be2host_to_buf uint16_swap_to_buf
 #endif
 #if SYS_ARCH_BIG_ENDIAN
 #  define uint16_le2host uint16_swap
 #  define uint16_host2le uint16_swap
 #  define uint16_be2host(x) (x)
 #  define uint16_host2be(x) (x)
+#  define uint16_le2host_from_buf uint16_swap_from_buf
+#  define uint16_host2le_from_buf uint16_swap_from_buf
+#  define uint16_be2host_from_buf(buf) (*((uint16_t *)(buf)))
+#  define uint16_host2be_from_buf(buf) (*((uint16_t *)(buf)))
+#  define uint16_host2le_to_buf uint16_swap_to_buf
+#  define uint16_le2host_to_buf uint16_swap_to_buf
+#  define uint16_host2be_to_buf(buf,v) do { (*((uint16_t *)(buf))) = v; } while (0);
+#  define uint16_be2host_to_buf(buf,v) do { (*((uint16_t *)(buf))) = v; } while (0);
 #endif
 
 extern void sys_delay(unsigned long ms);
 extern unsigned long sys_get_ms(void);
+
+/* dynamic libraries */
+
+typedef struct
+{
+#if SYS_TYPE_UNIX
+	void *desc;
+#endif
+#if SYS_TYPE_WIN32
+	HINSTANCE handle;
+#endif
+}
+sys_dl_t;
+
+typedef void (*sys_dl_func_t)(void);
+
+int sys_dl_open(sys_dl_t *dl, const char *name);
+int sys_dl_close(sys_dl_t *dl);
+int sys_dl_get(sys_dl_t *dl, const char *name, void **ptr);
+int sys_dl_func(sys_dl_t *dl, const char *name, sys_dl_func_t *ptr);
 
 #endif /* __SYSTEM_H */

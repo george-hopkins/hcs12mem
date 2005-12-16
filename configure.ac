@@ -19,7 +19,7 @@ dnl   along with this program; if not, write to the Free Software
 dnl   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 AC_INIT(src/hc12mem.c)
-AM_INIT_AUTOMAKE([hc12mem], [1.2])
+AM_INIT_AUTOMAKE([hc12mem], [1.3])
 AM_CONFIG_HEADER(config.h)
 AC_CANONICAL_HOST
 AC_PROG_MAKE_SET
@@ -49,11 +49,14 @@ if test "$SYSTEM" != "${SYSTEM#CYGWIN}"; then
   CYGWIN="1"
   AC_SUBST(CYGWIN)
 fi
+if test "$SYSTEM" != "FreeBSD"; then
+  LDFLAGS="$LDFLAGS -ldl"
+fi
 if test "$GCC" = "yes"; then
   if test "$CYGWIN" = "1"; then
     CFLAGS="$CFLAGS -pedantic -Wall -fsigned-char"
   else
-    CFLAGS="$CFLAGS -ansi -pedantic -Wall -fsigned-char"
+    CFLAGS="$CFLAGS -ansi -pedantic -Wall -fsigned-char -Wno-unused-function"
   fi
 fi
 
@@ -78,6 +81,7 @@ AC_CHECK_HEADERS(sys/types.h sys/time.h sys/ioctl.h sys/sysctl.h)
 AC_CHECK_HEADERS(sys/file.h sys/stat.h fcntl.h)
 AC_CHECK_HEADERS(termios.h)
 AC_CHECK_HEADERS(getopt.h)
+AC_CHECK_HEADERS(dlfcn.h)
 
 dnl Checks compiler characteristics
 
@@ -96,11 +100,13 @@ AC_CHECK_FUNCS(cfmakeraw)
 AC_CHECK_FUNCS(strlcpy)
 AC_CHECK_FUNCS(getopt)
 AC_CHECK_FUNCS(getopt_long)
+AC_CHECK_FUNCS(dlfunc)
 ACX_OPTRESET
 
 dnl export configuration to Makefiles
 
 AC_SUBST(CFLAGS)
+AC_SUBST(LDFLAGS)
 
 dnl Makefiles to generate
 

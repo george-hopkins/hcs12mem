@@ -190,7 +190,7 @@ static int hc12sm_cmd_read_byte(uint16_t addr, uint8_t *v)
 	uint8_t cmd[2];
 	int ret;
 
-	uint16_host2be_buf(cmd, addr);
+	uint16_host2be_to_buf(cmd, addr);
 	ret = hc12sm_cmd(HC12SM_CMD_READ_BYTE, cmd, 2, v, 1);
 	if (ret != 0)
 		return ret;
@@ -208,7 +208,7 @@ static int hc12sm_cmd_write_byte(uint16_t addr, uint8_t v)
 	uint8_t cmd[3];
 	int ret;
 
-	uint16_host2be_buf(cmd + 0, addr);
+	uint16_host2be_to_buf(cmd + 0, addr);
 	cmd[2] = v;
 	ret = hc12sm_cmd(HC12SM_CMD_WRITE_BYTE, cmd, 3, NULL, 0);
 	if (ret != 0)
@@ -227,7 +227,7 @@ static int hc12sm_cmd_read_word(uint16_t addr, uint16_t *v)
 	uint8_t cmd[2];
 	int ret;
 
-	uint16_host2be_buf(cmd, addr);
+	uint16_host2be_to_buf(cmd, addr);
 	ret = hc12sm_cmd(HC12SM_CMD_READ_WORD, cmd, 2, v, 2);
 	if (ret != 0)
 		return ret;
@@ -247,8 +247,8 @@ static int hc12sm_cmd_write_word(uint16_t addr, uint16_t v)
 	uint8_t cmd[4];
 	int ret;
 
-	uint16_host2be_buf(cmd + 0, addr);
-	uint16_host2be_buf(cmd + 2, v);
+	uint16_host2be_to_buf(cmd + 0, addr);
+	uint16_host2be_to_buf(cmd + 2, v);
 	ret = hc12sm_cmd(HC12SM_CMD_WRITE_WORD, cmd, 4, NULL, 0);
 	if (ret != 0)
 		return ret;
@@ -261,7 +261,7 @@ static int hc12sm_cmd_write_word(uint16_t addr, uint16_t v)
 }
 
 
-static int hc12sm_cmd_read_block(uint16_t addr, size_t len, void *buf)
+static int hc12sm_cmd_read_block(uint16_t addr, void *buf, size_t len)
 {
 	uint8_t cmd[3];
 	int ret;
@@ -269,7 +269,7 @@ static int hc12sm_cmd_read_block(uint16_t addr, size_t len, void *buf)
 	if (len == 0 || len > HC12SM_BLOCK_SIZE_MAX)
 		return EINVAL;
 
-	uint16_host2be_buf(cmd + 0, addr);
+	uint16_host2be_to_buf(cmd + 0, addr);
 	cmd[2] = (uint8_t)(len - 1);
 	ret = hc12sm_cmd(HC12SM_CMD_READ_BLOCK, cmd, 3, buf, (size_t)len);
 	if (ret != 0)
@@ -283,7 +283,7 @@ static int hc12sm_cmd_read_block(uint16_t addr, size_t len, void *buf)
 }
 
 
-static int hc12sm_cmd_write_block(uint16_t addr, size_t len, const void *buf)
+static int hc12sm_cmd_write_block(uint16_t addr, const void *buf, size_t len)
 {
 	uint8_t cmd[3 + HC12SM_BLOCK_SIZE_MAX];
 	int ret;
@@ -291,7 +291,7 @@ static int hc12sm_cmd_write_block(uint16_t addr, size_t len, const void *buf)
 	if (len == 0 || len > HC12SM_BLOCK_SIZE_MAX)
 		return EINVAL;
 
-	uint16_host2be_buf(cmd + 0, addr);
+	uint16_host2be_to_buf(cmd + 0, addr);
 	cmd[2] = (uint8_t)(len - 1);
 	memcpy(cmd + 3, buf, len);
 	ret = hc12sm_cmd(HC12SM_CMD_WRITE_BLOCK, cmd, 3 + len, NULL, 0);
@@ -327,10 +327,10 @@ static int hc12sm_cmd_device_info(uint16_t *partid)
 	if (ret != 0)
 		return ret;
 
-	*partid = uint16_be2host_buf(info + 1);
+	*partid = uint16_be2host_from_buf(info + 1);
 
 	ret = hc12sm_cmd_read_block(HC12SM_FLASH_ID_ADDR,
-		HC12SM_FLASH_ID_SIZE, id);
+		id, HC12SM_FLASH_ID_SIZE);
 	if (ret != 0)
 		return ret;
 
@@ -501,7 +501,7 @@ static int hc12sm_eeprom_erase_verify(void)
 	{
 		ret = hc12sm_cmd_read_block(
 			(uint16_t)(i + hc12mcu_target.eeprom_base),
-			HC12SM_BLOCK_SIZE_MAX, buf);
+			buf, HC12SM_BLOCK_SIZE_MAX);
 		if (ret != 0)
 			return ret;
 		for (j = 0; j < HC12SM_BLOCK_SIZE_MAX; ++j)
@@ -620,7 +620,7 @@ static int hc12sm_eeprom_protect(const char *opt)
  *    status code (errno-like)
  */
 
-static int hc12sm_flash_read_cb(uint32_t addr, size_t size, void *buf)
+static int hc12sm_flash_read_cb(uint32_t addr, void *buf, size_t size)
 {
 	int ret;
 
@@ -630,7 +630,7 @@ static int hc12sm_flash_read_cb(uint32_t addr, size_t size, void *buf)
 
 	ret = hc12sm_cmd_read_block((uint16_t)
 		(HCS12_FLASH_BANK_WINDOW_ADDR + (addr % HCS12_FLASH_BANK_WINDOW_SIZE)),
-		size, buf);
+		buf, size);
 	if (ret != 0)
 		return ret;
 
@@ -664,7 +664,7 @@ static int hc12sm_flash_read(const char *file)
  *    status code (errno-like)
  */
 
-static int hc12sm_flash_write_cb(uint32_t addr, size_t size, const void *buf)
+static int hc12sm_flash_write_cb(uint32_t addr, const void *buf, size_t size)
 {
 	int ret;
 	uint8_t ppage;
@@ -688,7 +688,7 @@ static int hc12sm_flash_write_cb(uint32_t addr, size_t size, const void *buf)
 	    a >= hc12mcu_flash_addr_window(HC12SM_FLASH_IMAGE_START))
 		a += HCS12_FLASH_BANK_WINDOW_SIZE;
 
-	ret = hc12sm_cmd_write_block(a, size, buf);
+	ret = hc12sm_cmd_write_block(a, buf, size);
 	if (ret != 0)
 		return ret;
 
@@ -736,19 +736,15 @@ static int hc12sm_flash_erase_verify(void)
 	{
 		fa = options.flash_addr;
 		options.flash_addr = HC12MEM_FLASH_ADDR_BANKED_LINEAR;
-		ret = hc12sm_flash_read_cb(i, HC12SM_BLOCK_SIZE_MAX, buf);
+		ret = hc12sm_flash_read_cb(i, buf, HC12SM_BLOCK_SIZE_MAX);
 		options.flash_addr = fa;
 		if (ret != 0)
-		{
-			progress_stop(t, NULL, 0);
 			return ret;
-		}
 
 		for (j = 0; j < HC12SM_BLOCK_SIZE_MAX; j += sizeof(uint32_t))
 		{
 			if (*((uint32_t *)(buf + j)) != 0xffffffff)
 			{
-				progress_stop(t, NULL, 0);
 				error("FLASH memory not erased\n");
 				return EIO;
 			}

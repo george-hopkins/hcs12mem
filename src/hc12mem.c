@@ -27,23 +27,20 @@
 #include "hc12bdm.h"
 
 #if HAVE_GETOPT_H
-#include <getopt.h>
-#undef HAVE_GETOPT_OWN
+# include <getopt.h>
+# undef HAVE_GETOPT_OWN
 #else
-#include "getopt_own.h"
-#define HAVE_GETOPT_OWN
+# include "getopt_own.h"
+# define HAVE_GETOPT_OWN
 #endif
 
 
 /* program info and usage strings */
 
 static const char *PRG_INFO =
-"HC12 memory loader V%s (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>\n";
+"HC12 memory loader V%s (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>\n\n";
 static const char *PRG_USAGE =
 	"Usage: hc12mem [options]\n"
-#if !HAVE_GETOPT_LONG
-	"WARNING: long options (--something) are not supported on this platform !\n"
-#endif
 	"  -h, --help\n"
 	"      show usage info\n"
 	"  -q, --quiet\n"
@@ -52,6 +49,7 @@ static const char *PRG_USAGE =
 	"      force operation, if questionable\n"
 	"  -i <interface>, --interface <interface>\n"
 	"      use given interface for target connection, supported ones are:\n"
+	"      tbdml     - Daniel Malik's Turbo BDM Light\n"
 	"      bdm12pod  - original Kevin Ross's BDM12 POD\n"
 	"      podex     - PODEX with patched firmware\n"
 	"      podex-bug - original Marek Peca's PODEX (with bugs)\n"
@@ -113,7 +111,11 @@ static const char *PRG_USAGE =
 	"Special options for LRAE:\n"
 	"  -Z, --keep-lrae\n"
 	"      keep LRAE boot loader in FLASH memory when erasing FLASH\n"
-	"      memory (default is to erase it)\n";
+	"      memory (default is to erase it)\n"
+	"Special options for TBDML:\n"
+	"  -Y, --tbdml-bulk\n"
+	"      enable bulk USB transfers for TBDML (faster, but non-standard\n"
+	"      according to USB specification)\n";
 
 /* target connection handlers */
 
@@ -122,6 +124,7 @@ static const hc12mem_target_handler_t *hc12mem_target_handler_table[] =
 	&hc12mem_target_handler_lrae,
 	&hc12mem_target_handler_sm,
 	&hc12mem_target_handler_bdm12pod,
+	&hc12mem_target_handler_tbdml,
 	NULL
 };
 
@@ -147,7 +150,7 @@ void error(const char *fmt, ...)
 {
 	va_list list;
 
-	fprintf(stderr, "error: ");
+	fprintf(stderr, "\nerror: ");
 	va_start(list, fmt);
 	vfprintf(stderr, fmt, list);
 	va_end(list);
@@ -168,7 +171,10 @@ unsigned long progress_start(const char *title)
 	progress_last = 0;
 	if (options.verbose)
 	{
-		printf("%s [", (const char *)title);
+		printf("%s [                                                  ]\b"
+		       "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b"
+		       "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
+		       (const char *)title);
 		fflush(stdout);
 	}
 
@@ -321,11 +327,6 @@ static int hc12mem_target_info_read(void)
 	}
 	else
 		strlcpy(file, options.target, sizeof(file));
-
-	/*
-	if (options.verbose)
-		printf("target description file <%s>\n", (const char *)file);
-	*/
 
 	f = fopen(file, "rt");
 	if (f == NULL)
@@ -504,9 +505,19 @@ int main(int argc, char *argv[])
 
 	/* valid options */
 
-	static const char *opt_string = "hqdfi:p:b:c:t:o:j:a:es:vX:USAB:C:D:EFG:H:RZ";
+	static const char *opt_string = "hqdfi:p:b:c:t:o:j:a:es:vX:USAB:C:D:EFG:H:RZY";
 #if HAVE_GETOPT_LONG
 	static const struct option opt_long[] =
+#else
+	static const struct
+	{
+		char *name;
+		int has_arg;
+		int *flag;
+		int val;
+	}
+	opt_long[] =
+#endif
 	{
 		{ "help",           0, NULL, 'h' },
 		{ "quiet",          0, NULL, 'q' },
@@ -536,9 +547,9 @@ int main(int argc, char *argv[])
 		{ "flash-read",     1, NULL, 'G' },
 		{ "flash-write",    1, NULL, 'H' },
 		{ "keep-lrae",      0, NULL, 'Z' },
+		{ "tbdml-bulk",     0, NULL, 'Y' },
 		{ NULL, 0, NULL, 0 }
 	};
-#endif
 
 	if (argc == 1)
 	{
@@ -547,16 +558,39 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	/* replace long options with short ones, when there's no support
+	   for long options on this platform */
+
+#	if !HAVE_GETOPT_LONG
+	{
+		int i, j;
+
+		for (i = 1; i < argc; ++ i)
+		{
+			if (argv[i][0] == '-' && argv[i][1] == '-')
+			{
+				for (j = 0; opt_long[j].name != NULL; ++ j)
+				{
+					if (strcmp(argv[i] + 2, opt_long[j].name) == 0)
+					{
+						sprintf(argv[i], "-%c", opt_long[j].val);
+						break;
+					}
+				}
+			}
+		}
+	}
+#	endif
+
 	/* get data directory */
 
-#	if SYS_TYPE_UNIX
-		strlcpy(hc12mem_data_dir, HC12MEM_DATA_DIR, sizeof(hc12mem_data_dir));
-#	endif
 #	if SYS_TYPE_WIN32
 	{
 		strlcpy(hc12mem_data_dir, _pgmptr, sizeof(hc12mem_data_dir));
 		*strrchr(hc12mem_data_dir, SYS_PATH_SEPARATOR) = '\0';
 	}
+#	else
+		strlcpy(hc12mem_data_dir, HC12MEM_DATA_DIR, sizeof(hc12mem_data_dir));
 #	endif
 
 	/* options initial values */
@@ -579,6 +613,7 @@ int main(int argc, char *argv[])
 	options.podex_25 = FALSE;
 	options.podex_mem_bug = FALSE;
 	options.keep_lrae = FALSE;
+	options.tbdml_bulk = FALSE;
 
 	/* parse options */
 
@@ -726,6 +761,10 @@ int main(int argc, char *argv[])
 
 			case 'Z':
 				options.keep_lrae = TRUE;
+				break;
+
+			case 'Y':
+				options.tbdml_bulk = TRUE;
 				break;
 
 			default:

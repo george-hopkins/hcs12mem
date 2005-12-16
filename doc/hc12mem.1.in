@@ -25,34 +25,29 @@ hc12mem can communicate with the target device using BDM link or serial port.
 .B BDM POD
 .PP
 Using BDM link requires special interface device - so called BDM POD.
-Currently hc12mem supports only single POD type - Kevin Ross's BDM12 POD.
-It can be original one, or PODEX which is compatible with original BDM12
-POD serial protocol. POD type must be specified using -i option, valid
-arguments are:
+Supported BDM PODs are:
+.IP
+.B tbdml
+- Daniel Malik's TBDML (Turbo BDM Light USB POD), see
+.I http://www.freegeeks.org
 .IP
 .B bdm12pod
-- original Kevin Ross's BDM12 POD, see
+- Kevin Ross's BDM12 POD, see
 .I http://www.kevinro.com
 .IP
 .B podex-bug
-- original Marek Peca's
-significantly slow the communication down, see
+- original Marek Peca's PODEX (with firmware bugs that
+significantly slow the communication down), see
 .I http://www.duch.cz/podex/
 .IP
 .B podex
-- PODEX with improved firmware, wih patches for memory access bugs
-found in original design; this version works exactly the same as
-original Kevin Ross's BDM12 POD, option
-.B -i podex
-is equivalent to
-.B -i bdm12pod
-For more details see
+- PODEX with improved firmware, with my fixes for memory access bugs
+found in original design, see
 .I http://cml.mfk.net.pl/podex
 .IP
 .B podex-25
-- special PODEX version dedicated for 25MHz target (expecially
-MC9S12NE64). This interface doesn't require specifying target
-oscillator frequency. For more details see
+- special PODEX version dedicated for fixed 25MHz target
+(especially MC9S12NE64), see
 .I http://cml.mfk.net.pl/podex
 .PP
 .B BOOTLOADER (Freescale's LRAE via serial port)
@@ -129,11 +124,14 @@ Use given interface for target connection. Supported ones are:
 .B sm
 - Freescale's serial monitor (AN2548)
 .IP
+.B tbdml
+- Daniel Malik's TBDML (Turbo BDM Light) USB POD
+.IP
 .B bdm12pod
 - original Kevin Ross's BDM12 POD
 .IP
 .B podex
-- PODEX with patched firmware
+- PODEX with firmware bugfixes
 .IP
 .B podex-bug
 - original Marek Peca's PODEX (with memory access bugs)
@@ -179,7 +177,8 @@ will look for
 file, if that's where program data files are located.
 .TP
 .B -o <freq>, --osc <freq>
-Specify target device oscillator frequency.
+Specify target device oscillator frequency, if interface requires it and
+cannot auto-detect it.
 .I freq
 can be specified directly as value in Hz, or suffix [k|kHz|M|MHz] can be used,
 for example these all are equivalent: -o 8000000, -o 8000kHz, -o 8MHz
@@ -284,18 +283,37 @@ Options specific for particular interfaces:
 Option applicable for LRAE bootloader only - when erasing FLASH memory,
 keep LRAE in memory (do not erase FLASH area containing LRAE image).
 Default is to bulk erase whole memory, thus erasing LRAE.
+.TP
+.B -Y, --tbdml-bulk
+Option applicable for TBDML USB POD only - use bulk USB transfers, which
+are violating USB specification, but give better data transfer rates.
+Check if it works for you and use it if you feel good about it.
+Known to work under FreeBSD and MS Windows, linux unfortunatelly rejects
+bulk transfers, but Your Mileage May Vary.
 .SH "EXAMPLES"
 .PP
 There are some common options that must be specified in most cases: interface
-type, serial port, target type, target oscillator frequency. Almost every call
-requires these, so for clarity they will be stated only once as an example,
+type, interface port, target type, target oscillator frequency (if interface
+requires it and cannot auto-detect). Almost every call requires these,
+so for clarity they will be stated only once as an example,
 and omitted in the following examples, substituted by [-ipto] symbol.
 .PP
 .B BDM
 .PP
-For BDM connection, we specify the following common options:
-interface is PODEX, serial port for PODEX attachment
-is /dev/uart0, target is MC9S12A64 MCU operating at 16MHz.
+Depending on the interface in use, different options are required:
+.PP
+TBDML - interface type and target type are required, no port specification
+is required (USB bus is assumed), no target frequency is required
+(TBDML can auto-detect it), but it can be overriden with -o option, if required.
+.PP
+BDM12, PODEX - required are: interface type, target type,
+interface connection port and target frequency.
+.PP
+Two examples of these options for TBDML and PODEX follows:
+first example - interface is PODEX, serial port for PODEX attachment
+is /dev/uart0, target is MC9S12A64 MCU operating at 16MHz; second
+example - interface is TBDML (assumed connection via USB), target is
+MC9S12A64 MCU, operating frequency is auto-detected.
 .B hc12mem
 call usually requires some more action commands to do something specific,
 but such call with these options only is convenient for verifying target
@@ -303,6 +321,8 @@ communication - it initializes the target, displays all the info and quits:
 .RS
 .PP
 hc12mem -i podex -p /dev/uart0 -t mc9s12a64 -o 16MHz
+.PP
+hc12mem -i tbdml -t mc9s12a64
 .RE
 .PP
 Unsecure secured microcontroller:
@@ -439,6 +459,13 @@ hc12mem [-ipt] --flash-erase --flash-write program.s19 --reset
 Writing program destined to be loaded into FLASH memory in coexistence with
 serial monitor has special requirements (memory layout, MCU initialization),
 see Application Note AN2548 for more details.
+.SH "BUGS, NOTES, TODO"
+.PD 0
+.PP
+FLASH write verify is not implemented yet.
+.PP
+MCUs with more that single FLASH block are barely tested.
+.PD
 .SH "SEE ALSO"
 .PD 0
 .PP
@@ -456,6 +483,9 @@ see Application Note AN2548 for more details.
 .PP
 .I http://www.kevinro.com
 - Kevin Ross's BDM12 POD web page
+.PP
+.I http://www.freegeeks.org
+- Daniel Malik's TBDML
 .PP
 .I http://cml.mfk.net.pl/an2548
 - my port of Freescale's serial monitor (AN2548) to GNU tools

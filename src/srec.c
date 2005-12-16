@@ -431,7 +431,7 @@ int srec_write(const char *file, const char *info,
 	if (f == NULL)
 	{
 		ret = errno;
-		error("cannot open %s for writing (%s)",
+		error("cannot open %s for writing (%s)\n",
 		      (const char *)file,
 		      (const char *)strerror(ret));
 		return ret;

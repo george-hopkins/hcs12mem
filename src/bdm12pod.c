@@ -396,7 +396,7 @@ static int bdm12pod_reg_dump(void)
 		printf("BDM12POD reg dump: <0x%02x> bdm status <0x%02x> pc <0x%04x>\n",
 		       (unsigned int)a[0],
 		       (unsigned int)a[1],
-		       (unsigned int)uint16_be2host_buf(a + 2));
+		       (unsigned int)uint16_be2host_from_buf(a + 2));
 	}
 
 	return 0;
@@ -421,8 +421,8 @@ static int bdm12pod_mem_dump(uint16_t addr, uint16_t *buf, uint16_t len)
 
 	q[0] = BDM12POD_CMD_EXT;
 	q[1] = BDM12POD_CMD_EXT_MEM_DUMP;
-	uint16_host2be_buf(q + 2, addr);
-	uint16_host2be_buf(q + 4, len);
+	uint16_host2be_to_buf(q + 2, addr);
+	uint16_host2be_to_buf(q + 4, len);
 
 	ret = bdm12pod_dialog(q, sizeof(q), (uint8_t *)buf, len * 2);
 	if (ret != 0)
@@ -477,8 +477,8 @@ static int bdm12pod_mem_put(uint16_t addr, const uint16_t *buf, uint16_t len)
 
 	q[0] = BDM12POD_CMD_EXT;
 	q[1] = BDM12POD_CMD_EXT_MEM_PUT;
-	uint16_host2be_buf(q + 2, addr);
-	uint16_host2be_buf(q + 4, len);
+	uint16_host2be_to_buf(q + 2, addr);
+	uint16_host2be_to_buf(q + 4, len);
 
 	ret = bdm12pod_dialog(q, sizeof(q), NULL, 0);
 	if (ret != 0)
@@ -536,7 +536,7 @@ static int bdm12pod_set_param(unsigned long osc,
 		eq[0] = BDM12POD_CMD_EXT;
 		eq[1] = BDM12POD_CMD_EXT_SPEED;
 		eq[2] = 0; /* FIXME: podex ignores it, KR does not ? */
-		uint16_host2be_buf(eq + 3, v);
+		uint16_host2be_to_buf(eq + 3, v);
 
 		ret = bdm12pod_dialog(eq, sizeof(eq), NULL, 0);
 		if (ret != 0)
@@ -620,7 +620,7 @@ static int bdm12pod_read_bd_byte(uint16_t addr, uint8_t *v)
 	int ret;
 
 	q[0] = HC12BDM_CMD_HW_READ_BD_BYTE;
-	uint16_host2be_buf(q + 1, addr);
+	uint16_host2be_to_buf(q + 1, addr);
 
 	ret = bdm12pod_dialog(q, sizeof(q), a, sizeof(a));
 	if (ret != 0)
@@ -656,13 +656,13 @@ static int bdm12pod_read_bd_word(uint16_t addr, uint16_t *v)
 	int ret;
 
 	q[0] = HC12BDM_CMD_HW_READ_BD_WORD;
-	uint16_host2be_buf(q + 1, addr);
+	uint16_host2be_to_buf(q + 1, addr);
 
 	ret = bdm12pod_dialog(q, sizeof(q), a, sizeof(a));
 	if (ret != 0)
 		return ret;
 
-	*v = uint16_be2host_buf(a);
+	*v = uint16_be2host_from_buf(a);
 
 	if (options.debug)
 	{
@@ -692,7 +692,7 @@ static int bdm12pod_read_byte(uint16_t addr, uint8_t *v)
 	int ret;
 
 	q[0] = HC12BDM_CMD_HW_READ_BYTE;
-	uint16_host2be_buf(q + 1, addr);
+	uint16_host2be_to_buf(q + 1, addr);
 
 	ret = bdm12pod_dialog(q, sizeof(q), a, sizeof(a));
 	if (ret != 0)
@@ -728,13 +728,13 @@ static int bdm12pod_read_word(uint16_t addr, uint16_t *v)
 	int ret;
 
 	q[0] = HC12BDM_CMD_HW_READ_WORD;
-	uint16_host2be_buf(q + 1, addr);
+	uint16_host2be_to_buf(q + 1, addr);
 
 	ret = bdm12pod_dialog(q, sizeof(q), a, sizeof(a));
 	if (ret != 0)
 		return ret;
 
-	*v = uint16_be2host_buf(a);
+	*v = uint16_be2host_from_buf(a);
 
 	if (options.debug)
 	{
@@ -763,7 +763,7 @@ static int bdm12pod_write_bd_byte(uint16_t addr, uint8_t v)
 	int ret;
 
 	q[0] = HC12BDM_CMD_HW_WRITE_BD_BYTE;
-	uint16_host2be_buf(q + 1, addr);
+	uint16_host2be_to_buf(q + 1, addr);
 	if ((addr & 0x0001) == 0)
 	{
 		q[3] = v;
@@ -806,8 +806,8 @@ static int bdm12pod_write_bd_word(uint16_t addr, uint16_t v)
 	int ret;
 
 	q[0] = HC12BDM_CMD_HW_WRITE_BD_WORD;
-	uint16_host2be_buf(q + 1, addr);
-	uint16_host2be_buf(q + 3, v);
+	uint16_host2be_to_buf(q + 1, addr);
+	uint16_host2be_to_buf(q + 3, v);
 
 	ret = bdm12pod_dialog(q, sizeof(q), NULL, 0);
 	if (ret != 0)
@@ -840,7 +840,7 @@ static int bdm12pod_write_byte(uint16_t addr, uint8_t v)
 	int ret;
 
 	q[0] = HC12BDM_CMD_HW_WRITE_BYTE;
-	uint16_host2be_buf(q + 1, addr);
+	uint16_host2be_to_buf(q + 1, addr);
 	if ((addr & 0x0001) == 0)
 	{
 		q[3] = v;
@@ -883,8 +883,8 @@ static int bdm12pod_write_word(uint16_t addr, uint16_t v)
 	int ret;
 
 	q[0] = HC12BDM_CMD_HW_WRITE_WORD;
-	uint16_host2be_buf(q + 1, addr);
-	uint16_host2be_buf(q + 3, v);
+	uint16_host2be_to_buf(q + 1, addr);
+	uint16_host2be_to_buf(q + 3, v);
 
 	ret = bdm12pod_dialog(q, sizeof(q), NULL, 0);
 	if (ret != 0)
@@ -921,7 +921,7 @@ static int bdm12pod_read_next(uint16_t *v)
 	if (ret != 0)
 		return ret;
 
-	*v = uint16_be2host_buf(a);
+	*v = uint16_be2host_from_buf(a);
 
 	if (options.debug)
 	{
@@ -966,6 +966,8 @@ static int bdm12pod_read_reg(int reg, uint16_t *v)
 		case HC12BDM_REG_SP:
 			q[0] = HC12BDM_CMD_FW_READ_SP;
 			break;
+		case HC12BDM_REG_CCR:
+			/* not supported - skip to default: */
 		default:
 			return EINVAL;
 	}
@@ -974,7 +976,7 @@ static int bdm12pod_read_reg(int reg, uint16_t *v)
 	if (ret != 0)
 		return ret;
 
-	*v = uint16_be2host_buf(a);
+	*v = uint16_be2host_from_buf(a);
 
 	if (options.debug)
 	{
@@ -1001,7 +1003,7 @@ static int bdm12pod_write_next(uint16_t v)
 	int ret;
 
 	q[0] = HC12BDM_CMD_FW_WRITE_NEXT;
-	uint16_host2be_buf(q + 1, v);
+	uint16_host2be_to_buf(q + 1, v);
 
 	ret = bdm12pod_dialog(q, sizeof(q), NULL, 0);
 	if (ret != 0)
@@ -1049,11 +1051,13 @@ static int bdm12pod_write_reg(int reg, uint16_t v)
 		case HC12BDM_REG_SP:
 			q[0] = HC12BDM_CMD_FW_WRITE_SP;
 			break;
+		case HC12BDM_REG_CCR:
+			/* not supported - skip to default: */
 		default:
 			return EINVAL;
 	}
 
-	uint16_host2be_buf(q + 1, v);
+	uint16_host2be_to_buf(q + 1, v);
 
 	ret = bdm12pod_dialog(q, sizeof(q), NULL, 0);
 	if (ret != 0)
@@ -1070,7 +1074,7 @@ static int bdm12pod_write_reg(int reg, uint16_t v)
 
 
 /*
- *  execute GO/GO_UNTIL/TRACE1?TAGGO command
+ *  execute GO/GO_UNTIL/TRACE1/TAGGO command
  *
  *  in:
  *    void
@@ -1090,13 +1094,13 @@ static int bdm12pod_go_until(void)
 }
 
 
-static int bdm12pod_go_trace1(void)
+static int bdm12pod_trace1(void)
 {
 	return bdm12pod_cmd(HC12BDM_CMD_FW_TRACE1, "TRACE1");
 }
 
 
-static int bdm12pod_go_taggo(void)
+static int bdm12pod_taggo(void)
 {
 	return bdm12pod_cmd(HC12BDM_CMD_FW_TAGGO, "TAGGO");
 }
@@ -1113,19 +1117,22 @@ static int bdm12pod_go_taggo(void)
  *    status code (errno-like)
  */
 
-static int bdm12pod_read_mem(uint16_t addr, uint8_t *buf, uint16_t len)
+static int bdm12pod_read_mem(uint16_t addr, void *buf, size_t len)
 {
-	uint16_t n;
-	uint16_t i;
+	uint8_t *ptr;
+	size_t n;
+	size_t i;
 	uint16_t v;
 	int ret;
 
 	if (len == 0)
 		return 0;
 
+	ptr = (uint8_t *)buf;
+
 	if (addr & 1)
 	{
-		ret = bdm12pod_read_byte(addr++, buf++);
+		ret = bdm12pod_read_byte(addr++, ptr++);
 		if (ret != 0)
 			return ret;
 
@@ -1144,25 +1151,25 @@ static int bdm12pod_read_mem(uint16_t addr, uint8_t *buf, uint16_t len)
 				ret = bdm12pod_read_word((uint16_t)(addr + i * 2), &v);
 				if (ret != 0)
 					return ret;
-				uint16_host2be_buf(buf + i * 2, v);
+				uint16_host2be_to_buf(ptr + i * 2, v);
 			}
 		}
 		else
 		{
-			ret = bdm12pod_mem_dump(addr, (uint16_t *)buf, n);
+			ret = bdm12pod_mem_dump(addr, (uint16_t *)ptr, (uint16_t)n);
 			if (ret != 0)
 				return ret;
 		}
 
 		n *= 2;
 		len -= n;
-		addr += n;
-		buf += n;
+		addr += (uint16_t)n;
+		ptr += n;
 	}
 
 	if (len != 0) /* must be 1 */
 	{
-		ret = bdm12pod_read_byte(addr, buf);
+		ret = bdm12pod_read_byte(addr, ptr);
 		if (ret != 0)
 			return ret;
 	}
@@ -1182,19 +1189,22 @@ static int bdm12pod_read_mem(uint16_t addr, uint8_t *buf, uint16_t len)
  *    status code (errno-like)
  */
 
-static int bdm12pod_write_mem(uint16_t addr, const uint8_t *buf, uint16_t len)
+static int bdm12pod_write_mem(uint16_t addr, const void *buf, size_t len)
 {
-	uint16_t n;
-	uint16_t i;
+	const uint8_t *ptr;
+	size_t n;
+	size_t i;
 	uint16_t v;
 	int ret;
 
 	if (len == 0)
 		return 0;
 
+	ptr = (const uint8_t *)buf;
+
 	if (addr & 1)
 	{
-		ret = bdm12pod_write_byte(addr++, *buf++);
+		ret = bdm12pod_write_byte(addr++, *ptr++);
 		if (ret != 0)
 			return ret;
 
@@ -1210,7 +1220,7 @@ static int bdm12pod_write_mem(uint16_t addr, const uint8_t *buf, uint16_t len)
 		{
 			for (i = 0; i < n; ++ i)
 			{
-				v = uint16_be2host_buf(buf + i * 2);
+				v = uint16_be2host_from_buf(ptr + i * 2);
 				ret = bdm12pod_write_word((uint16_t)(addr + i * 2), v);
 				if (ret != 0)
 					return ret;
@@ -1218,20 +1228,20 @@ static int bdm12pod_write_mem(uint16_t addr, const uint8_t *buf, uint16_t len)
 		}
 		else
 		{
-			ret = bdm12pod_mem_put(addr, (uint16_t *)buf, n);
+			ret = bdm12pod_mem_put(addr, (uint16_t *)ptr, (uint16_t)n);
 			if (ret != 0)
 				return ret;
 		}
 
 		n *= 2;
 		len -= n;
-		addr += n;
-		buf += n;
+		addr += (uint16_t)n;
+		ptr += n;
 	}
 
 	if (len != 0) /* must be 1 */
 	{
-		ret = bdm12pod_write_byte(addr, *buf);
+		ret = bdm12pod_write_byte(addr, *ptr);
 		if (ret != 0)
 			return ret;
 	}
@@ -1335,7 +1345,6 @@ hc12bdm_handler_t bdm12pod_bdm_handler =
 	bdm12pod_close,
 	bdm12pod_reset_normal,
 	bdm12pod_reset_special,
-
 	bdm12pod_background,
 	bdm12pod_ack_enable,
 	bdm12pod_ack_disable,
@@ -1355,6 +1364,6 @@ hc12bdm_handler_t bdm12pod_bdm_handler =
 	bdm12pod_write_reg,
 	bdm12pod_go,
 	bdm12pod_go_until,
-	bdm12pod_go_trace1,
-	bdm12pod_go_taggo
+	bdm12pod_trace1,
+	bdm12pod_taggo
 };

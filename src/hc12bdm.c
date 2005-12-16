@@ -24,6 +24,7 @@
 #include "hc12mcu.h"
 #include "hc12bdm.h"
 #include "bdm12pod.h"
+#include "tbdml.h"
 #include "srec.h"
 #include "../target/agent.h"
 
@@ -310,6 +311,7 @@ static int hc12bdm_ram_load(const char *file, int agent)
 	uint32_t addr_max;
 	uint32_t len;
 	uint32_t i;
+	uint32_t chunk;
 	unsigned long t;
 
 	if (!agent)
@@ -373,20 +375,24 @@ static int hc12bdm_ram_load(const char *file, int agent)
 		}
 	}
 
+	chunk = HC12BDM_RAM_LOAD_CHUNK;
 	t = progress_start("RAM load: data");
-	for (i = 0; i < len; ++ i)
+	for (i = 0; i < len; i += chunk)
 	{
-		ret = (*hc12bdm_handler->write_byte)(
+		if (i + chunk > len)
+			chunk = len - i;
+
+		ret = (*hc12bdm_handler->write_mem)(
 			(uint16_t)(addr_min + i),
-			buf[addr_min - hc12mcu_target.ram_base + i]);
+			buf + addr_min - hc12mcu_target.ram_base + i,
+			chunk);
 		if (ret != 0)
 		{
-			progress_stop(t, NULL, 0);
 			free(buf);
 			return ret;
 		}
 
-		progress_report(i + 1, len);
+		progress_report(i + chunk, len);
 	}
 	progress_stop(t, NULL, 0);
 
@@ -1203,10 +1209,6 @@ static int hc12bdm_eeprom_erase(void)
 static int hc12bdm_eeprom_read(const char *file)
 {
 	int ret;
-	uint8_t *buf;
-	uint32_t i;
-	uint32_t chunk;
-	unsigned long t;
 	int agent;
 
 	ret = hc12bdm_get_mode("bdm_eeprom_read", &agent);
@@ -1230,95 +1232,12 @@ static int hc12bdm_eeprom_read(const char *file)
 		ret = hc12bdm_agent_load();
 		if (ret != 0)
 			return ret;
+
+		/* TODO: add support for reading EEPROM via agent,
+		currently it falls through to reading it directly */
 	}
 
-	buf = malloc(hc12mcu_target.eeprom_size);
-	if (buf == NULL)
-	{
-		error("not enough memory\n");
-		return ENOMEM;
-	}
-
-	/* single read chunk size */
-
-	chunk = hc12mcu_target.eeprom_size / 128;
-
-	/* read loop */
-
-	t = progress_start("EEPROM read: data");
-	for (i = 0; i < hc12mcu_target.eeprom_size; i += chunk)
-	{
-		if (agent)
-		{
-			/* param + 0: EEPROM address (word) */
-
-			ret = (*hc12bdm_handler->write_word)(
-				(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 0),
-				(uint16_t)(hc12mcu_target.eeprom_base + i));
-			if (ret != 0)
-				goto error_nl;
-
-			/* param + 2: data length (word) */
-
-			ret = (*hc12bdm_handler->write_word)(
-				(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 2),
-				(uint16_t)chunk);
-			if (ret != 0)
-				goto error_nl;
-
-			/* execute command via agent */
-
-			ret = hc12bdm_agent_cmd(HC12_AGENT_CMD_EEPROM_READ, NULL);
-			if (ret != 0)
-				goto error_nl;
-
-			/* transfer returned data */
-
-			ret = (*hc12bdm_handler->read_mem)(
-				(uint16_t)hc12bdm_agent_buf_addr,
-				buf + i, (uint16_t)chunk);
-			if (ret != 0)
-				goto error_nl;
-		}
-		else
-		{
-			/* read data from EEPROM directly */
-
-			ret = (*hc12bdm_handler->read_mem)(
-				(uint16_t)(hc12mcu_target.eeprom_base + i),
-				buf + i, (uint16_t)chunk);
-			if (ret != 0)
-			{
-			  error_nl:
-				progress_stop(t, NULL, 0);
-				free(buf);
-				return ret;
-			}
-		}
-
-		progress_report(i + chunk, hc12mcu_target.eeprom_size);
-	}
-	progress_stop(t, "EEPROM read: data", hc12mcu_target.eeprom_size);
-
-	/* write S-record file */
-
-	ret = srec_write(file, "EEPROM data", hc12mcu_target.eeprom_base,
-		hc12mcu_target.eeprom_size, buf, hc12mcu_target.eeprom_base, NULL,
-		!options.include_erased, options.srec_size);
-	if (ret != 0)
-	{
-		free(buf);
-		return ret;
-	}
-
-	if (options.verbose)
-	{
-		printf("EEPROM read: data file <%s> written\n",
-		       (const char *)file);
-	}
-
-	free(buf);
-	return 0;
+	return hc12mcu_eeprom_read(file, HC12BDM_EEPROM_READ_CHUNK, hc12bdm_handler->read_mem);
 }
 
 
@@ -1450,7 +1369,7 @@ static int hc12bdm_eeprom_write(const char *file)
 	t = progress_start("EEPROM write: data");
 	for (i = 0; i < len; i += 2)
 	{
-		w = uint16_be2host_buf(&buf[addr_min - hc12mcu_target.eeprom_base + i]);
+		w = uint16_be2host_from_buf(&buf[addr_min - hc12mcu_target.eeprom_base + i]);
 
 		if (agent)
 		{
@@ -1495,7 +1414,7 @@ static int hc12bdm_eeprom_write(const char *file)
 			if (ret != 0)
 			{
 			  error_nl:
-				progress_stop(t, NULL, 0);
+				/*progress_stop(t, NULL, 0);*/
 				goto error;
 			}
 		}
@@ -1512,18 +1431,14 @@ static int hc12bdm_eeprom_write(const char *file)
 			ret = (*hc12bdm_handler->read_word)(
 				(uint16_t)(addr_min + i), &w);
 			if (ret != 0)
-			{
-				progress_stop(t, NULL, 0);
 				goto error;
-			}
 
-			if (w != uint16_be2host_buf(&buf[addr_min - hc12mcu_target.eeprom_base + i]))
+			if (w != uint16_be2host_from_buf(&buf[addr_min - hc12mcu_target.eeprom_base + i]))
 			{
-				progress_stop(t, NULL, 0);
 				error("EEPROM data verify error at address <0x%04x> value <0x%04x> expected <0x%04x>\n",
 				      (unsigned int)(addr_min + i),
 				      (unsigned int)w,
-				      (unsigned int)uint16_be2host_buf(&buf[addr_min - hc12mcu_target.eeprom_base + i]));
+				      (unsigned int)uint16_be2host_from_buf(&buf[addr_min - hc12mcu_target.eeprom_base + i]));
 				goto error;
 			}
 
@@ -1654,7 +1569,7 @@ static int hc12bdm_eeprom_protect(const char *opt)
 	}
 	else
 	{
-		w = uint16_be2host_buf(&buf[HC12_EEPROM_RESERVED_EPROT_OFFSET & 0xfffe]);
+		w = uint16_be2host_from_buf(&buf[HC12_EEPROM_RESERVED_EPROT_OFFSET & 0xfffe]);
 		ret = hc12bdm_hcs12_eeprom_program(
 			(uint16_t)(addr + (HC12_EEPROM_RESERVED_EPROT_OFFSET & 0xfffe)), w);
  		if (ret != 0)
@@ -1960,7 +1875,7 @@ static int hc12bdm_agent_cmd_flash(uint8_t cmd, uint32_t addr, uint16_t size)
  *    status code (errno-like)
  */
 
-static int hc12bdp_flash_set_bank_ppage(uint32_t addr)
+static int hc12bdm_flash_set_bank_ppage(uint32_t addr)
 {
 	uint8_t p;
 	int ret;
@@ -1995,6 +1910,54 @@ static int hc12bdp_flash_set_bank_ppage(uint32_t addr)
 
 
 /*
+ *  FLASH read callback
+ *
+ *  in:
+ *    addr - FLASH linear address
+ *    size - block size
+ *    buf - data buffer
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12bdm_flash_read_cb_direct(uint32_t addr, void *buf, size_t size)
+{
+	int ret;
+
+	ret = hc12bdm_flash_set_bank_ppage(addr);
+	if (ret != 0)
+		return ret;
+
+	ret = (*hc12bdm_handler->read_mem)(
+		(uint16_t)(HCS12_FLASH_BANK_WINDOW_ADDR +
+			   (addr % HCS12_FLASH_BANK_WINDOW_SIZE)),
+		buf, size);
+	if (ret != 0)
+		return ret;
+
+	return 0;
+}
+
+
+static int hc12bdm_flash_read_cb_agent(uint32_t addr, void *buf, size_t size)
+{
+	int ret;
+
+	ret = hc12bdm_agent_cmd_flash(
+		HC12_AGENT_CMD_FLASH_READ, addr, (uint16_t)size);
+	if (ret != 0)
+		return ret;
+
+	ret = (*hc12bdm_handler->read_mem)(
+		(uint16_t)hc12bdm_agent_buf_addr, buf, (uint16_t)size);
+	if (ret != 0)
+		return ret;
+
+	return 0;
+}
+
+
+/*
  *  read target FLASH
  *
  *  in:
@@ -2006,12 +1969,6 @@ static int hc12bdp_flash_set_bank_ppage(uint32_t addr)
 static int hc12bdm_flash_read(const char *file)
 {
 	int ret;
-	uint8_t *buf;
-	uint32_t i;
-	uint32_t chunk;
-	uint32_t size;
-	unsigned long t;
-	uint32_t (*adc)(uint32_t addr);
 	int agent;
 
 	ret = hc12bdm_get_mode("bdm_flash_read", &agent);
@@ -2035,90 +1992,63 @@ static int hc12bdm_flash_read(const char *file)
 		ret = hc12bdm_agent_load();
 		if (ret != 0)
 			return ret;
+
+		return hc12mcu_flash_read(file, hc12bdm_agent_buf_len, hc12bdm_flash_read_cb_agent);
 	}
-
-	if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
-		size = hc12mcu_target.flash_nb_size;
-	else
-		size = hc12mcu_target.flash_size;
-
-	buf = malloc(size);
-	if (buf == NULL)
-	{
-		error("not enough memory\n");
-		return ENOMEM;
-	}
-
-	if (agent)
-		chunk = hc12bdm_agent_buf_len;
-	else
-		chunk = 512;
 
 	hc12bdm_ppage = 0xff; /* invalid ppage to start with, and force proper init */
+	return hc12mcu_flash_read(file, HC12BDM_FLASH_READ_CHUNK, hc12bdm_flash_read_cb_direct);
+}
 
-	t = progress_start("FLASH read: image");
-	for (i = 0; i < size; i += chunk)
-	{
-		if (agent)
-		{
-			ret = hc12bdm_agent_cmd_flash(
-				HC12_AGENT_CMD_FLASH_READ, i, (uint16_t)chunk);
-			if (ret != 0)
-				goto error_nl;
 
-			ret = (*hc12bdm_handler->read_mem)(
-				(uint16_t)hc12bdm_agent_buf_addr,
-				buf + i, (uint16_t)chunk);
-			if (ret != 0)
-				goto error_nl;
-		}
-		else
-		{
-			ret = hc12bdp_flash_set_bank_ppage(i);
-			if (ret != 0)
-				goto error_nl;
+/*
+ *  FLASH write callback
+ *
+ *  in:
+ *    addr - FLASH linear address
+ *    size - block size
+ *    buf - data buffer
+ *  out:
+ *    status code (errno-like)
+ */
 
-			ret = (*hc12bdm_handler->read_mem)(
-				(uint16_t)(HCS12_FLASH_BANK_WINDOW_ADDR +
-					   (i % HCS12_FLASH_BANK_WINDOW_SIZE)),
-				buf + i, (uint16_t)chunk);
-			if (ret != 0)
-			{
-			  error_nl:
-				progress_stop(t, NULL, 0);
-				free(buf);
-				return ret;
-			}
-		}
+static int hc12bdm_flash_write_cb_direct(uint32_t addr, const void *buf, size_t size)
+{
+	int ret;
+	size_t i;
 
-		progress_report(i + chunk, size);
-	}
-	progress_stop(t, "FLASH read: image", size);
-
-	if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
-		adc = hc12mcu_flash_write_address_nb;
-	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_LINEAR)
-		adc = hc12mcu_flash_write_address_bl;
-	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_PPAGE)
-		adc = hc12mcu_flash_write_address_bp;
-	else
-		adc = NULL;
-
-	ret = srec_write(file, "FLASH image", 0, size, buf, size - 2, adc,
-		!options.include_erased, options.srec_size);
+	ret = hc12bdm_flash_set_bank_ppage(addr);
 	if (ret != 0)
-	{
-		free(buf);
 		return ret;
-	}
 
-	if (options.verbose)
+	for (i = 0; i < size; i += 2)
 	{
-		printf("FLASH read: image file <%s> written\n",
-		       (const char *)file);
+		ret = hc12bdm_hcs12_flash_program(
+			(uint16_t)(HCS12_FLASH_BANK_WINDOW_ADDR +
+			((addr + i) % HCS12_FLASH_BANK_WINDOW_SIZE)),
+			uint16_be2host_from_buf((const uint8_t *)buf + i));
+		if (ret != 0)
+			return ret;
 	}
 
-	free(buf);
+	return 0;
+}
+
+
+static int hc12bdm_flash_write_cb_agent(uint32_t addr, const void *buf, size_t size)
+{
+	int ret;
+
+	ret = (*hc12bdm_handler->write_mem)(
+		hc12bdm_agent_buf_addr, buf, (uint16_t)size);
+	if (ret != 0)
+		return ret;
+
+	ret = hc12bdm_agent_cmd_flash(
+		HC12_AGENT_CMD_FLASH_WRITE, addr, (uint16_t)size);
+	if (ret != 0)
+		return ret;
+
 	return 0;
 }
 
@@ -2134,19 +2064,6 @@ static int hc12bdm_flash_read(const char *file)
 
 static int hc12bdm_flash_write(const char *file)
 {
-	uint32_t (*adc)(uint32_t addr);
-	uint32_t size;
-	uint8_t *buf;
-	char info[256];
-	uint32_t addr_min;
-	uint32_t addr_max;
-	uint32_t len;
-	uint32_t i, j;
-	uint32_t chunk;
-	uint32_t cnt;
-	unsigned long t;
-	uint16_t addr;
-	uint16_t w;
 	int ret;
 	int agent;
 
@@ -2172,202 +2089,11 @@ static int hc12bdm_flash_write(const char *file)
 		if (ret != 0)
 			return ret;
 
-		chunk = hc12bdm_agent_buf_len;
-	}
-	else
-		chunk = 16;
-
-	if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
-		size = hc12mcu_target.flash_nb_size;
-	else
-		size = hc12mcu_target.flash_size;
-
-	buf = malloc(size);
-	if (buf == NULL)
-	{
-		error("not enough memory\n");
-		return ENOMEM;
-	}
-	memset(buf, 0xff, (size_t)size);
-
-	if (options.verbose)
-	{
-		printf("FLASH write: image file <%s>\n",
-		       (const char *)file);
-	}
-
-	if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
-		adc = hc12mcu_flash_read_address_nb;
-	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_LINEAR)
-		adc = hc12mcu_flash_read_address_bl;
-	else if (options.flash_addr == HC12MEM_FLASH_ADDR_BANKED_PPAGE)
-		adc = hc12mcu_flash_read_address_bp;
-	else
-		adc = NULL;
-
-	ret = srec_read(file, info, sizeof(info),
-		buf, size, NULL, &addr_min, &addr_max, adc);
-	if (ret != 0)
-		goto error;
-
-	len = 0;
-	for (i = 0; i < size; i += chunk)
-	{
-		for (j = 0; j < chunk; j += 4)
-		{
-			if (*((uint32_t *)&buf[i + j]) != 0xffffffff)
-				break;
-		}
-		if (j == chunk)
-			continue;
-		len += chunk;
-	}
-
-	if (options.verbose)
-	{
-		if (info[0] != '\0')
-		{
-			printf("FLASH write: image info <%s>\n",
-			       (const char *)info);
-		}
-#if 0
-		if (options.flash_addr == HC12MEM_FLASH_ADDR_NON_BANKED)
-		{
-			printf("FLASH write: size <0x%04x> address range <0x%04x-0x%04x>\n",
-			       (unsigned int)len,
-			       (unsigned int)addr_min,
-			       (unsigned int)addr_max);
-		}
-		else
-#endif
-		{
-			printf("FLASH write: size <0x%04x> linear address range <0x%05x-0x%05x>\n",
-			       (unsigned int)len,
-			       (unsigned int)(addr_min + hc12mcu_target.flash_linear_base),
-			       (unsigned int)(addr_max + hc12mcu_target.flash_linear_base));
-		}
+		return hc12mcu_flash_write(file, hc12bdm_agent_buf_len, hc12bdm_flash_write_cb_agent);
 	}
 
 	hc12bdm_ppage = 0xff; /* invalid ppage to start with, and force proper init */
-	cnt = 0;
-	t = progress_start("FLASH write: image");
-	for (i = 0; i < size; i += chunk)
-	{
-		for (j = 0; j < chunk; j += 4)
-		{
-			if (*((uint32_t *)&buf[i + j]) != 0xffffffff)
-				break;
-		}
-		if (j == chunk)
-			continue;
-		cnt += chunk;
-
-		if (agent)
-		{
-			ret = (*hc12bdm_handler->write_mem)(
-				hc12bdm_agent_buf_addr, buf + i, (uint16_t)chunk);
-			if (ret != 0)
-			{
-			  error_nl:
-				progress_stop(t, NULL, 0);
-				goto error;
-			}
-
-			ret = hc12bdm_agent_cmd_flash(
-				HC12_AGENT_CMD_FLASH_WRITE, i, (uint16_t)chunk);
-			if (ret != 0)
-				goto error_nl;
-		}
-		else
-		{
-			ret = hc12bdp_flash_set_bank_ppage(i);
-			if (ret != 0)
-				goto error_nl;
-
-			for (j = 0; j < chunk; j += 2)
-			{
-				ret = hc12bdm_hcs12_flash_program(
-					(uint16_t)(HCS12_FLASH_BANK_WINDOW_ADDR +
-					((i + j) % HCS12_FLASH_BANK_WINDOW_SIZE)),
-					uint16_be2host_buf(buf + i + j));
-				if (ret != 0)
-					goto error_nl;
-			}
-		}
-
-		progress_report(cnt, len);
-	}
-	progress_stop(t, "FLASH write: image", len);
-
-	if (options.verify)
-	{
-		hc12bdm_ppage = 0xff; /* invalid ppage to start with, and force proper init */
-		cnt = 0;
-		t = progress_start("FLASH write: verify");
-		for (i = 0; i < size; i += chunk)
-		{
-			for (j = 0; j < chunk; j += 4)
-			{
-				if (*((uint32_t *)&buf[i + j]) != 0xffffffff)
-					break;
-			}
-			if (j == chunk)
-				continue;
-			cnt += chunk;
-
-			if (agent)
-			{
-				ret = hc12bdm_agent_cmd_flash(
-					HC12_AGENT_CMD_FLASH_READ, i, (uint16_t)chunk);
-				if (ret != 0)
-				{
-				  error_verify:
-					progress_stop(t, NULL, 0);
-					goto error;
-				}
-
-				addr = hc12bdm_agent_buf_addr;
-			}
-			else
-			{
-				ret = hc12bdp_flash_set_bank_ppage(i);
-				if (ret != 0)
-					goto error_nl;
-
-				addr = (uint16_t)(HCS12_FLASH_BANK_WINDOW_ADDR +
-					(i % HCS12_FLASH_BANK_WINDOW_SIZE));
-			}
-
-			for (j = 0; j < chunk; j += 2)
-			{
-				ret = (*hc12bdm_handler->read_word)((uint16_t)(addr + j), &w);
-				if (ret != 0)
-					goto error_verify;
-
-				if (w != uint16_be2host_buf(buf + i + j))
-				{
-					progress_stop(t, NULL, 0);
-					error("FLASH verify error at address <0x%04x> value <0x%04x> expected <0x%04x>\n",
-					      (unsigned int)i,
-					      (unsigned int)w,
-					      (unsigned int)uint16_be2host_buf(buf +i + j));
-					goto error;
-				}
-			}
-
-			progress_report(cnt, len);
-		}
-		progress_stop(t, "FLASH write: verify", len);
-		if (options.verbose)
-			printf("FLASH write: verify ok\n");
-	}
-
-	free(buf);
-	return 0;
-
-error:
-	free(buf);
-	return ret;
+	return hc12mcu_flash_write(file, HC12BDM_FLASH_WRITE_CHUNK, hc12bdm_flash_write_cb_direct);
 }
 
 
@@ -2456,6 +2182,44 @@ hc12mem_target_handler_t hc12mem_target_handler_bdm12pod =
 {
 	"bdm12pod",
 	hc12bdm12pod_open,
+	hc12bdm_close,
+	hc12bdm_ram_run,
+	hc12bdm_unsecure,
+	hc12bdm_secure,
+	hc12bdm_eeprom_read,
+	hc12bdm_eeprom_erase,
+	hc12bdm_eeprom_write,
+	hc12bdm_eeprom_protect,
+	hc12bdm_flash_read,
+	hc12bdm_flash_erase,
+	hc12bdm_flash_write,
+	hc12bdm_flash_protect,
+	hc12bdm_reset
+};
+
+
+/*
+ *  open BDM target connection via TBDML
+ *
+ *  in:
+ *    void
+ *  out:
+ *    status code (errno-like)
+ */
+
+static int hc12tbdml_open(void)
+{
+	hc12bdm_handler = &tbdml_bdm_handler;
+	return hc12bdm_open();
+}
+
+
+/* BDM handler for TBDML */
+
+hc12mem_target_handler_t hc12mem_target_handler_tbdml =
+{
+	"tbdml",
+	hc12tbdml_open,
 	hc12bdm_close,
 	hc12bdm_ram_run,
 	hc12bdm_unsecure,

@@ -222,13 +222,13 @@ extern uint8_t hc12mcu_linear_to_block(uint32_t linear);
 extern uint8_t hc12mcu_block_to_ppage_base(uint32_t block);
 
 extern int hc12mcu_flash_read(const char *file, size_t chunk,
-	int (*f)(uint32_t addr, size_t size, void *buf));
+	int (*f)(uint32_t addr, void *buf, size_t size));
 extern int hc12mcu_flash_write(const char *file, size_t chunk,
-	int (*f)(uint32_t addr, size_t size, const void *buf));
+	int (*f)(uint32_t addr, const void *buf, size_t size));
 extern int hc12mcu_eeprom_read(const char *file, size_t chunk,
-	int (*f)(uint16_t addr, size_t size, void *buf));
+	int (*f)(uint16_t addr, void *buf, size_t size));
 extern int hc12mcu_eeprom_write(const char *file, size_t chunk,
-	int (*f)(uint16_t addr, size_t size, const void *buf));
+	int (*f)(uint16_t addr, const void *buf, size_t size));
 extern int hc12mcu_eeprom_protect(const char *opt,
 	int (*eeww)(uint16_t addr, uint16_t v));
 

@@ -26,7 +26,7 @@
 #include "sys.h"
 
 #ifndef VERSION
-#define VERSION "1.2"
+#define VERSION "1.3"
 #endif
 
 /* default S-record size */
@@ -61,6 +61,7 @@ typedef struct
 	int podex_25;
 	int podex_mem_bug;
 	int keep_lrae;
+	int tbdml_bulk;
 }
 hc12mem_options_t;
 

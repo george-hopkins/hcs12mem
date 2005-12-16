@@ -409,8 +409,8 @@ static int hc12lrae_ram_load(const char *file, int agent)
 		}
 	}
 
-	uint16_host2be_buf(h + 0, (uint16_t)entry);
-	uint16_host2be_buf(h + 2, (uint16_t)len);
+	uint16_host2be_to_buf(h + 0, (uint16_t)entry);
+	uint16_host2be_to_buf(h + 2, (uint16_t)len);
 	sum = h[0] + h[1] + h[2] + h[3];
 
 	size = sizeof(h);
@@ -431,7 +431,6 @@ static int hc12lrae_ram_load(const char *file, int agent)
 		ret = serial_write(&hc12lrae_serial, &b, &size, HC12LRAE_TX_TIMEOUT);
 		if (ret != 0)
 		{
-			progress_stop(t, NULL, 0);
 			free(buf);
 			return ret;
 		}
@@ -530,30 +529,6 @@ static int hc12lrae_rx(void *buf, size_t len)
 		error("timeout - no connection with target\n");
 		return ret;
 	}
-
-	return 0;
-}
-
-
-/*
- *  receive data word from target
- *
- *  in:
- *    v - received value (on return)
- *  out:
- *    status code (errno-like)
- */
-
-static int hc12lrae_rx_word(uint16_t *v)
-{
-	uint8_t b[2];
-	int ret;
-
-	ret = hc12lrae_rx(b, 2);
-	if (ret != 0)
-		return ret;
-
-	*v = uint16_be2host_buf(b);
 
 	return 0;
 }
@@ -704,7 +679,7 @@ static int hc12lrae_load_agent(void)
 	if (ret != 0)
 		return ret;
 
-	uint16_host2be_buf(osc, (uint16_t)(options.osc / 1000));
+	uint16_host2be_to_buf(osc, (uint16_t)(options.osc / 1000));
 
 	ret = hc12lrae_tx(osc, sizeof(osc));
 	if (ret != 0)
@@ -893,14 +868,14 @@ static int hc12lrae_flash_write_word(uint8_t block, uint8_t ppage, uint16_t addr
 
 	cmd[0] = block;
 	cmd[1] = ppage;
-	uint16_host2be_buf(cmd + 2, addr);
-	uint16_host2be_buf(cmd + 4, 2);
+	uint16_host2be_to_buf(cmd + 2, addr);
+	uint16_host2be_to_buf(cmd + 4, 2);
 
 	ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_WRITE, cmd, sizeof(cmd));
 	if (ret != 0)
 		return ret;
 
-	uint16_host2be_buf(w, value);
+	uint16_host2be_to_buf(w, value);
 	ret = hc12lrae_tx(w, sizeof(w));
 	if (ret != 0)
 		return ret;
@@ -959,7 +934,7 @@ static int hc12lrae_flash_erase(int unsecure)
 		{
 			cmd[0] = hc12mcu_linear_to_block(i);
 			cmd[1] = hc12mcu_linear_to_ppage(i);
-			uint16_host2be_buf(cmd + 2, (uint16_t)
+			uint16_host2be_to_buf(cmd + 2, (uint16_t)
 				(HCS12_FLASH_BANK_WINDOW_ADDR +
 				(i % HCS12_FLASH_BANK_WINDOW_SIZE)));
 
@@ -975,21 +950,14 @@ static int hc12lrae_flash_erase(int unsecure)
 			{
 				ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_ERASE_SECTOR, cmd, 4);
 				if (ret != 0)
-				{
-					progress_stop(t, NULL, 0);
 					return ret;
-				}
 
 				ret = hc12lrae_rx(&b, 1);
 				if (ret != 0)
-				{
-					progress_stop(t, NULL, 0);
 					return ret;
-				}
 
 				if (b != HC12_AGENT_ERROR_NONE)
 				{
-					progress_stop(t, NULL, 0);
 					error("invalid response\n");
 					return EIO;
 				}
@@ -1093,7 +1061,7 @@ static int hc12lrae_flash_erase(int unsecure)
  *    status code (errno-like)
  */
 
-static int hc12lrae_flash_read_cb(uint32_t addr, size_t size, void *buf)
+static int hc12lrae_flash_read_cb(uint32_t addr, void *buf, size_t size)
 {
 	int ret;
 	uint8_t cmd[5];
@@ -1103,8 +1071,8 @@ static int hc12lrae_flash_read_cb(uint32_t addr, size_t size, void *buf)
 	{
 		cmd[0] = hc12mcu_linear_to_block(addr);
 		cmd[1] = hc12mcu_linear_to_ppage(addr);
-		uint16_host2be_buf(cmd + 2, HCS12_FLASH_BANK_WINDOW_ADDR);
-		uint16_host2be_buf(cmd + 4, HCS12_FLASH_BANK_WINDOW_SIZE);
+		uint16_host2be_to_buf(cmd + 2, HCS12_FLASH_BANK_WINDOW_ADDR);
+		uint16_host2be_to_buf(cmd + 4, HCS12_FLASH_BANK_WINDOW_SIZE);
 
 		ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_READ, cmd, sizeof(cmd));
 		if (ret != 0)
@@ -1170,7 +1138,7 @@ static int hc12lrae_flash_read(const char *file)
  *    status code (errno-like)
  */
 
-static int hc12lrae_flash_write_cb(uint32_t addr, size_t size, const void *buf)
+static int hc12lrae_flash_write_cb(uint32_t addr, const void *buf, size_t size)
 {
 	int ret;
 	uint8_t cmd[6];
@@ -1178,8 +1146,8 @@ static int hc12lrae_flash_write_cb(uint32_t addr, size_t size, const void *buf)
 
 	cmd[0] = hc12mcu_linear_to_block(addr);
 	cmd[1] = hc12mcu_linear_to_ppage(addr);
-	uint16_host2be_buf(cmd + 2, (uint16_t)hc12mcu_flash_addr_window(addr));
-	uint16_host2be_buf(cmd + 4, (uint16_t)size);
+	uint16_host2be_to_buf(cmd + 2, (uint16_t)hc12mcu_flash_addr_window(addr));
+	uint16_host2be_to_buf(cmd + 4, (uint16_t)size);
 
 	ret = hc12lrae_cmd(HC12_AGENT_CMD_FLASH_WRITE, cmd, sizeof(cmd));
 	if (ret != 0)

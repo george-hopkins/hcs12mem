@@ -30,8 +30,13 @@ hc12mem_SOURCES = \
 	sys.h \
 	serial.c \
 	serial.h \
+	sys_usb.c \
+	sys_usb.h \
 	srec.c \
 	srec.h \
+	tbdml.c \
+	tbdml.h \
+	tbdml_comm.h \
 	bdm12pod.c \
 	bdm12pod.h \
 	hc12bdm.c \
@@ -48,6 +53,8 @@ hc12mem_SOURCES = \
 EXTRA_DIST = \
 	getopt_own.c \
 	getopt_own.h \
+	libusb/libusbwin32.h \
+	libusb/libusbunix.h \
 	src.dsp
 
 MAINTAINERCLEANFILES = Makefile.in

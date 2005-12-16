@@ -1,3 +1,15 @@
+hc12mem 1.3 (2005.12.16)
+
+- support for Daniel Malik's TBDML - Turbo BDM Light USB POD
+  bulk USB transfers with TBDML are also supported, although not by default,
+  because they are violating USB specification. To activate them, --tbdml-bulk
+  option is required, giving faster data transfer rates (works under FreeBSD
+  and MS Windows, linux rejects it, but Your Mileage May Vary)
+- more improvements to reporting FLASH address ranges to program
+- long options supported on MS Windows
+- some minor bugfixes affecting all interfaces, so users of previous
+  versions should upgrade even if new functionality is of no importance
+
 hc12mem 1.2 (2005.11.23)
 
 - support for Freescale's serial monitor - Application Note AN2548,

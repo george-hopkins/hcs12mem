@@ -727,7 +727,7 @@ uint8_t hc12mcu_block_to_ppage_base(uint32_t block)
  */
 
 int hc12mcu_flash_read(const char *file, size_t chunk,
-	int (*f)(uint32_t addr, size_t size, void *buf))
+	int (*f)(uint32_t addr, void *buf, size_t size))
 {
 	int ret;
 	uint32_t size;
@@ -757,10 +757,9 @@ int hc12mcu_flash_read(const char *file, size_t chunk,
 	t = progress_start("FLASH read: data");
 	for (i = 0; i < size; i += (uint32_t)chunk)
 	{
-		ret = (*f)(i, chunk, buf + i);
+		ret = (*f)(i, buf + i, chunk);
 		if (ret != 0)
 		{
-			progress_stop(t, NULL, 0);
 			free(buf);
 			return ret;
 		}
@@ -807,7 +806,7 @@ int hc12mcu_flash_read(const char *file, size_t chunk,
  */
 
 int hc12mcu_flash_write(const char *file, size_t chunk,
-	int (*f)(uint32_t addr, size_t size, const void *buf))
+	int (*f)(uint32_t addr, const void *buf, size_t size))
 {
 	uint32_t (*adc)(uint32_t addr);
 	uint32_t size;
@@ -894,7 +893,7 @@ int hc12mcu_flash_write(const char *file, size_t chunk,
 
 		for (; i < end; i += sizeof(uint16_t))
 		{
-			if (uint16_be2host_buf(buf + i) != 0xffff)
+			if (uint16_be2host_from_buf(buf + i) != 0xffff)
 				break;
 		}
 		if (i == end)
@@ -906,7 +905,7 @@ int hc12mcu_flash_write(const char *file, size_t chunk,
 
 		for (j = i + sizeof(uint16_t); j < end; j += sizeof(uint16_t))
 		{
-			if (uint16_be2host_buf(buf + j) == 0xffff)
+			if (uint16_be2host_from_buf(buf + j) == 0xffff)
 				break;
 		}
 
@@ -945,7 +944,7 @@ int hc12mcu_flash_write(const char *file, size_t chunk,
 
 		for (; i < end; i += sizeof(uint16_t))
 		{
-			if (uint16_be2host_buf(buf + i) != 0xffff)
+			if (uint16_be2host_from_buf(buf + i) != 0xffff)
 				break;
 		}
 		if (i == end)
@@ -957,14 +956,13 @@ int hc12mcu_flash_write(const char *file, size_t chunk,
 
 		for (j = i + sizeof(uint16_t); j < end; j += sizeof(uint16_t))
 		{
-			if (uint16_be2host_buf(buf + j) == 0xffff)
+			if (uint16_be2host_from_buf(buf + j) == 0xffff)
 				break;
 		}
 
-		ret = (*f)(i, j - i, buf + i);
+		ret = (*f)(i, buf + i, j - i);
 		if (ret != 0)
 		{
-			progress_stop(t, NULL, 0);
 			free(buf);
 			return ret;
 		}
@@ -990,7 +988,7 @@ int hc12mcu_flash_write(const char *file, size_t chunk,
  */
 
 int hc12mcu_eeprom_read(const char *file, size_t chunk,
-	int (*f)(uint16_t addr, size_t size, void *buf))
+	int (*f)(uint16_t addr, void *buf, size_t size))
 {
 	int ret;
 	uint8_t *buf;
@@ -1015,10 +1013,9 @@ int hc12mcu_eeprom_read(const char *file, size_t chunk,
 	t = progress_start("EEPROM read: data");
 	for (i = 0; i < size; i += (uint16_t)chunk)
 	{
-		ret = (*f)((uint16_t)(i + hc12mcu_target.eeprom_base), chunk, buf + i);
+		ret = (*f)((uint16_t)(i + hc12mcu_target.eeprom_base), buf + i, chunk);
 		if (ret != 0)
 		{
-			progress_stop(t, NULL, 0);
 			free(buf);
 			return ret;
 		}
@@ -1057,7 +1054,7 @@ int hc12mcu_eeprom_read(const char *file, size_t chunk,
  */
 
 int hc12mcu_eeprom_write(const char *file, size_t chunk,
-	int (*f)(uint16_t addr, size_t size, const void *buf))
+	int (*f)(uint16_t addr, const void *buf, size_t size))
 {
 	uint16_t size;
 	uint8_t *buf;
@@ -1155,10 +1152,9 @@ int hc12mcu_eeprom_write(const char *file, size_t chunk,
 		if (j == chunk)
 			continue;
 
-		ret = (*f)((uint16_t)(i + hc12mcu_target.eeprom_base), chunk, buf + i);
+		ret = (*f)((uint16_t)(i + hc12mcu_target.eeprom_base), buf + i, chunk);
 		if (ret != 0)
 		{
-			progress_stop(t, NULL, 0);
 			free(buf);
 			return ret;
 		}
