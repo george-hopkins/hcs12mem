@@ -392,7 +392,7 @@ static int serial_timeout(struct timeval *start, unsigned long *to, struct timev
 
 		/* update timeout with already passed time */
 
-		*to =- (unsigned long)diff;
+		*to -= (unsigned long)diff;
 	}
 
 	/* calculate timeout for select function */
