@@ -24,6 +24,16 @@
 #include "srec.h"
 
 /*
+ *  default address translation
+ */
+
+static uint32_t srec_addr_straight(uint32_t addr)
+{
+	return addr;
+}
+
+
+/*
  *  convert two chars from string into hex number
  *
  *  in:
@@ -202,6 +212,9 @@ int srec_read(const char *file, char *info, size_t info_len,
 	uint32_t addr_high;
 	uint8_t data[256]; /* S-record line: max 252 bytes of data */
 
+	if (atc == NULL)
+		atc = srec_addr_straight;
+
 	if (file == NULL)
 		f = stdin;
 	else
@@ -217,9 +230,12 @@ int srec_read(const char *file, char *info, size_t info_len,
 		}
 	}
 
-	*info = '\0';
-	*addr_min = (uint32_t)buf_len;
-	*addr_max = 0;
+	if (info != NULL)
+		*info = '\0';
+	if (addr_min != NULL)
+		*addr_min = (uint32_t)buf_len;
+	if (addr_max != NULL)
+		*addr_max = 0;
 
 	ret = 0;
 	line = 0;
@@ -246,7 +262,8 @@ int srec_read(const char *file, char *info, size_t info_len,
 		{
 			case SREC_TYPE_INFO:
 				data[cnt] = '\0';
-				strlcpy(info, (const char *)data, info_len);
+				if (info != NULL)
+					strlcpy(info, (const char *)data, info_len);
 				break;
 
 			case SREC_TYPE_REC_NUM:
@@ -267,9 +284,9 @@ int srec_read(const char *file, char *info, size_t info_len,
 				else
 				{
 					memcpy((uint8_t *)buf + addr_low, data, (size_t)cnt);
-					if (addr_low < *addr_min)
+					if (addr_min != NULL && addr_low < *addr_min)
 						*addr_min = addr_low;
-					if (addr_high > *addr_max)
+					if (addr_max != NULL && addr_high > *addr_max)
 						*addr_max = addr_high;
 				}
 				break;
@@ -383,16 +400,6 @@ static int srec_write_line(FILE *f, char type,
 	}
 
 	return 0;
-}
-
-
-/*
- *  default address translation
- */
-
-static uint32_t srec_addr_straight(uint32_t addr)
-{
-	return addr;
 }
 
 
