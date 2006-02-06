@@ -28,12 +28,11 @@
 /* timeouts and delays */
 
 #define BDM12POD_DEFAULT_BAUD_RATE 115200 /* bps */
-#define BDM12POD_CTS_TIMEOUT 100 /* ms */
-#define BDM12POD_RX_TIMEOUT 1000 /* ms */
-#define BDM12POD_TX_TIMEOUT 1000 /* ms */
+#define BDM12POD_CTS_TIMEOUT 2000 /* ms */
+#define BDM12POD_RX_TIMEOUT  2000 /* ms */
+#define BDM12POD_TX_TIMEOUT  2000 /* ms */
 #define BDM12POD_DEFAULT_TRACE_DELAY 0 /* ms */
 #define BDM12POD_DEFAULT_RESET_DELAY 1 /* ms */
-#define BDM12POD_RETRIES 5
 
 /* BDM12POD commands */
 

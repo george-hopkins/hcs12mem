@@ -47,8 +47,6 @@ static int bdm12pod_tx(const uint8_t *data, size_t len)
 	size_t i;
 	int state;
 	unsigned long start;
-	unsigned long now;
-	int cnt;
 	int ret;
 	size_t size;
 
@@ -61,21 +59,14 @@ static int bdm12pod_tx(const uint8_t *data, size_t len)
 			return ret;
 
 		start = sys_get_ms();
-		now = start;
-		cnt = BDM12POD_RETRIES;
-
-		while (now - start < BDM12POD_CTS_TIMEOUT || cnt != 0)
+		do
 		{
 			ret = serial_control(&bdm12pod_serial,
 				SERIAL_CONTROL_GET_CTS, &state);
 			if (ret != 0)
 				return ret;
-			if (state)
-				break;
-			now = sys_get_ms();
-			if (cnt != 0)
-				--cnt;
 		}
+		while (!state && sys_get_ms() - start < BDM12POD_CTS_TIMEOUT);
 
 		if (!state)
 		{
@@ -89,21 +80,14 @@ static int bdm12pod_tx(const uint8_t *data, size_t len)
 			return ret;
 
 		start = sys_get_ms();
-		now = start;
-		cnt = BDM12POD_RETRIES;
-
-		while (now - start < BDM12POD_CTS_TIMEOUT || cnt != 0)
+		do
 		{
 			ret = serial_control(&bdm12pod_serial,
 				SERIAL_CONTROL_GET_CTS, &state);
 			if (ret != 0)
 				return ret;
-			if (!state)
-				break;
-			now = sys_get_ms();
-			if (cnt != 0)
-				--cnt;
 		}
+		while (state && sys_get_ms() - start < BDM12POD_CTS_TIMEOUT);
 
 		if (state)
 		{
@@ -137,39 +121,19 @@ static int bdm12pod_tx(const uint8_t *data, size_t len)
 static int bdm12pod_dialog(const uint8_t *dtx, size_t ntx,
 	uint8_t *drx, size_t nrx)
 {
-	size_t i;
 	int ret;
-	size_t size;
 
 	ret = bdm12pod_tx(dtx, ntx);
 	if (ret != 0)
 		return ret;
 
-#if 0
 	ret = serial_read(&bdm12pod_serial, drx, &nrx, BDM12POD_RX_TIMEOUT);
 	if (ret == ETIMEDOUT)
 	{
 		error("connection timed out\n");
 		return ret;
 	}
-	if (ret != 0)
-		return ret;
-#else
-	for (i = 0; i < nrx; ++ i)
-	{
-		size = 1;
-		ret = serial_read(&bdm12pod_serial, &drx[i], &size, BDM12POD_RX_TIMEOUT);
-		if (ret == ETIMEDOUT)
-		{
-			error("connection timed out\n");
-			return ret;
-		}
-		if (ret != 0)
-			return ret;
-	}
-#endif
-
-	return 0;
+	return ret;
 }
 
 
