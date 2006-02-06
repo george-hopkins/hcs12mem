@@ -536,7 +536,14 @@ int hc12mcu_identify(int verbose)
 
 		for (i = 0; i < hc12mcu_target.flash_blocks; ++ i)
 		{
-			ret = (*hc12mcu_target.read_byte)((uint16_t)(HCS12_FLASH_FPROT - i), &fprot);
+			if (hc12mcu_target.flash_blocks > 1)
+			{
+				ret = (*hc12mcu_target.write_byte)(HCS12_IO_FCNFG, (uint8_t)i);
+				if (ret != 0)
+					return ret;
+			}
+
+			ret = (*hc12mcu_target.read_byte)(HCS12_IO_FPROT, &fprot);
 			if (ret != 0)
 				return ret;
 
@@ -544,9 +551,9 @@ int hc12mcu_identify(int verbose)
 			{
 				printf("HCS12 FLASH protection all <%s> high area <%s> low area <%s>\n",
 				       (const char *)((fprot & HCS12_FLASH_FPROT_FPOPEN) ? "off" : "on"),
-				       (const char *)((fprot & HCS12_FLASH_FPROT_FPHS) ? "off" :
+				       (const char *)((fprot & HCS12_FLASH_FPROT_FPHS) == HCS12_FLASH_FPROT_FPHS ? "off" :
 						      hcs12_flash_prot_area_table[(fprot & HCS12_FLASH_FPROT_FPHS) >> 3]),
-				       (const char *)((fprot & HCS12_FLASH_FPROT_FPLS) ? "off" :
+				       (const char *)((fprot & HCS12_FLASH_FPROT_FPLS) == HCS12_FLASH_FPROT_FPLS ? "off" :
 						      hcs12_flash_prot_area_table[(fprot & HCS12_FLASH_FPROT_FPLS) >> 0]));
 			}
 			else
@@ -554,9 +561,9 @@ int hc12mcu_identify(int verbose)
 				printf("HCS12 FLASH block <%u> protection all <%s> high area <%s> low area <%s>\n",
 				       (unsigned int)i,
 				       (const char *)((fprot & HCS12_FLASH_FPROT_FPOPEN) ? "off" : "on"),
-				       (const char *)((fprot & HCS12_FLASH_FPROT_FPHS) ? "off" :
+				       (const char *)((fprot & HCS12_FLASH_FPROT_FPHS) == HCS12_FLASH_FPROT_FPHS ? "off" :
 						      hcs12_flash_prot_area_table[(fprot & HCS12_FLASH_FPROT_FPHS) >> 3]),
-				       (const char *)((fprot & HCS12_FLASH_FPROT_FPLS) ? "off" :
+				       (const char *)((fprot & HCS12_FLASH_FPROT_FPLS) == HCS12_FLASH_FPROT_FPLS ? "off" :
 						      hcs12_flash_prot_area_table[(fprot & HCS12_FLASH_FPROT_FPLS) >> 0]));
 			}
 		}
@@ -891,9 +898,10 @@ int hc12mcu_flash_write(const char *file, size_t chunk,
 		if (end > pend)
 			end = pend;
 
-		for (; i < end; i += sizeof(uint16_t))
+		for (; i < end; i += sizeof(uint32_t))
 		{
-			if (uint16_be2host_from_buf(buf + i) != 0xffff)
+			/* no endianness conversion required for 0xffffffff */
+			if (*((uint32_t *)(buf + i)) != 0xffffffff)
 				break;
 		}
 		if (i == end)
@@ -903,9 +911,10 @@ int hc12mcu_flash_write(const char *file, size_t chunk,
 		if (end > pend)
 			end = pend;
 
-		for (j = i + sizeof(uint16_t); j < end; j += sizeof(uint16_t))
+		for (j = i + sizeof(uint32_t); j < end; j += sizeof(uint32_t))
 		{
-			if (uint16_be2host_from_buf(buf + j) == 0xffff)
+			/* no endianness conversion required for 0xffffffff */
+			if (*((uint32_t *)(buf + j)) == 0xffffffff)
 				break;
 		}
 
@@ -942,9 +951,10 @@ int hc12mcu_flash_write(const char *file, size_t chunk,
 		if (end > pend)
 			end = pend;
 
-		for (; i < end; i += sizeof(uint16_t))
+		for (; i < end; i += sizeof(uint32_t))
 		{
-			if (uint16_be2host_from_buf(buf + i) != 0xffff)
+			/* no endianness conversion required for 0xffffffff */
+			if (*((uint32_t *)(buf + i)) != 0xffffffff)
 				break;
 		}
 		if (i == end)
@@ -954,9 +964,10 @@ int hc12mcu_flash_write(const char *file, size_t chunk,
 		if (end > pend)
 			end = pend;
 
-		for (j = i + sizeof(uint16_t); j < end; j += sizeof(uint16_t))
+		for (j = i + sizeof(uint32_t); j < end; j += sizeof(uint32_t))
 		{
-			if (uint16_be2host_from_buf(buf + j) == 0xffff)
+			/* no endianness conversion required for 0xffffffff */
+			if (*((uint32_t *)(buf + j)) == 0xffffffff)
 				break;
 		}
 
