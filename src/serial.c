@@ -718,7 +718,7 @@ int serial_open(serial_t *s, const char *path)
 
 ret_error:
 	serial_close(s);
-	return ret; 
+	return ret;
 }
 
 
