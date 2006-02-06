@@ -1,0 +1,30 @@
+2006-02-06  Michal Konieczny  <mk@m.mfk.net.pl>
+
+	* src/bdm12pod.c:
+	* src/bdm12pod.h:
+	fixed serial port handshake timing
+
+	* src/hc12mcu.c: fix read of FPROT register (previously it was read
+	directly from memory, now is properly accessed via registers)
+	fixed FPROT bits interpretation for some patterns
+	increased s-record data gap size to 4 bytes for skipping when sending
+	data to be programmed into FLASH
+
+	* src/srec.c: add default mode for no address translation when passed
+	translation routine address = NULL
+
+2005-12-16  Michal Konieczny  <mk@cml.mfk.net.pl>
+
+	* version 1.3
+
+2005-11-23  Michal Konieczny  <mk@cml.mfk.net.pl>
+
+	* version 1.2
+
+2005-11-17  Michal Konieczny  <mk@cml.mfk.net.pl>
+
+	* version 1.1
+
+2005-11-08  Michal Konieczny  <mk@cml.mfk.net.pl>
+
+	* version 1.0
