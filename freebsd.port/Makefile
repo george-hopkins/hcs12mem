@@ -2,11 +2,11 @@
 # Date created:        18 November 2005
 # Whom:                mk
 #
-# $FreeBSD$
+# $FreeBSD: ports/devel/hc12mem/Makefile,v 1.2 2005/11/27 23:51:44 edwin Exp $
 #
 
 PORTNAME=	hc12mem
-PORTVERSION=	1.1
+PORTVERSION=	1.2
 CATEGORIES=	devel
 MASTER_SITES=	http://cml.mfk.net.pl/hc12mem/
 
