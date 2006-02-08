@@ -1,4 +1,4 @@
-hc12mem 1.3.1 ()
+hc12mem 1.3.1 (2006.02.08)
 
 - relaxed timing for PODEX - handshake timeout increased, because on slower
   computers or even with heavy task switching timeouts happened
