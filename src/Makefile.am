@@ -1,6 +1,5 @@
 # hc12mem - HC12 memory reader & writer
 # Makefile.am: automake Makefile template
-# $Id$
 #
 # Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
 #

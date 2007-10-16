@@ -1,5 +1,6 @@
 # hc12mem - HC12 memory reader & writer
-# Makefile.am: automake Makefile template
+# mc9s12d256.dat: target description - single chip MC9S12D256 MCU
+# $Id$
 #
 # Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
 #
@@ -17,12 +18,19 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-srcdir = @srcdir@
-VPATH = @srcdir@
+info single chip MC9S12XD256 MCU
 
-noinst_PROGRAMS = srecrand
+mcu MC9S12XD256
+family HCS12X
+ram_size 0x3800
+eeprom_module EETX2K
+flash_module FTX256K2
 
-srecrand_SOURCES = srecrand.c
+bdm_startup_delay 100
+bdm_agent bdm.s19
 
-MAINTAINERCLEANFILES = Makefile.in
-CLEANFILES = *~
+# only BDM flash write uses RAM agent
+bdm_flash_write agent
+
+lrae_agent lrae.s19
+lrae_size 0x0400

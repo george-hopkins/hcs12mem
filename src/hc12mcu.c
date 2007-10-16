@@ -38,7 +38,7 @@ static const char *hcs12_family_table[] =
 	"unknown",
 	"unknown",
 	"unknown",
-	"unknown",
+	"XD",
 	"unknown",
 	"unknown",
 	"unknown"
@@ -169,6 +169,8 @@ hc12_eeprom_module_table[] =
 	{ "EETS1K",    HCS12_EEPROM_MODULE_EETS1K,   1024 },
 	{ "EETS2K",    HCS12_EEPROM_MODULE_EETS2K,   2048 },
 	{ "EETS4K",    HCS12_EEPROM_MODULE_EETS4K,   4096 },
+	{ "EETX2K",    HCS12_EEPROM_MODULE_EETX2K,   2048 },
+	{ "EETX4K",    HCS12_EEPROM_MODULE_EETX4K,   4096 },
 	{ NULL,        HCS12_EEPROM_MODULE_UNKNOWN,     0 }
 };
 
@@ -183,20 +185,25 @@ static const struct
 	uint32_t nb_base;
 	uint8_t ppage_base;
 	uint8_t ppage_count;
+	uint8_t ppage_base_2;
+	uint8_t ppage_count_2;
 }
 hc12_flash_module_table[] =
 {
-	/* name        type                    blocks        size sector  lsize   lbase ppbase ppcnt */
-	{ "NONE",      HCS12_FLASH_MODULE_NONE,     0,          0,    0,      0,      0,    0,  0 },
-	{ "OTHER",     HCS12_FLASH_MODULE_OTHER,    0,          0,    0,      0,      0,    0,  0 },
-	{ "FTS16K",    HCS12_FLASH_MODULE_FTS16K,   1,  16 * 1024,  512, 0x4000, 0xc000, 0x3f,  1 },
-	{ "FTS32K",    HCS12_FLASH_MODULE_FTS32K,   1,  32 * 1024,  512, 0x8000, 0x8000, 0x3e,  2 },
-	{ "FTS64K",    HCS12_FLASH_MODULE_FTS64K,   1,  64 * 1024,  512, 0xc000, 0x4000, 0x3c,  4 },
-	{ "FTS128K",   HCS12_FLASH_MODULE_FTS128K,  2, 128 * 1024,  512, 0xc000, 0x4000, 0x38,  8 },
-	{ "FTS128K1",  HCS12_FLASH_MODULE_FTS128K1, 1, 128 * 1024, 1024, 0xc000, 0x4000, 0x38,  8 },
-	{ "FTS256K",   HCS12_FLASH_MODULE_FTS256K,  4, 256 * 1024,  512, 0xc000, 0x4000, 0x30, 16 },
-	{ "FTS512K4",  HCS12_FLASH_MODULE_FTS512K4, 4, 512 * 1024, 1024, 0xc000, 0x4000, 0x20, 32 },
-	{ NULL,        HCS12_FLASH_MODULE_UNKNOWN,  0,          0,    0,      0,      0,    0,  0 }
+	/* name        type                    blocks        size sector  lsize   lbase ppbase1 ppcnt1 ppbase2 ppcnt2 */
+	{ "NONE",      HCS12_FLASH_MODULE_NONE,     0,          0,    0,      0,      0,    0,  0,    0, 0 },
+	{ "OTHER",     HCS12_FLASH_MODULE_OTHER,    0,          0,    0,      0,      0,    0,  0,    0, 0 },
+	{ "FTS16K",    HCS12_FLASH_MODULE_FTS16K,   1,  16 * 1024,  512, 0x4000, 0xc000, 0x3f,  1,    0, 0 },
+	{ "FTS32K",    HCS12_FLASH_MODULE_FTS32K,   1,  32 * 1024,  512, 0x8000, 0x8000, 0x3e,  2,    0, 0 },
+	{ "FTS64K",    HCS12_FLASH_MODULE_FTS64K,   1,  64 * 1024,  512, 0xc000, 0x4000, 0x3c,  4,    0, 0 },
+	{ "FTS128K",   HCS12_FLASH_MODULE_FTS128K,  2, 128 * 1024,  512, 0xc000, 0x4000, 0x38,  8,    0, 0 },
+	{ "FTS128K1",  HCS12_FLASH_MODULE_FTS128K1, 1, 128 * 1024, 1024, 0xc000, 0x4000, 0x38,  8,    0, 0 },
+	{ "FTS256K",   HCS12_FLASH_MODULE_FTS256K,  4, 256 * 1024,  512, 0xc000, 0x4000, 0x30, 16,    0, 0 },
+	{ "FTS512K4",  HCS12_FLASH_MODULE_FTS512K4, 4, 512 * 1024, 1024, 0xc000, 0x4000, 0x20, 32,    0, 0 },
+	{ "FTX128K1",  HCS12_FLASH_MODULE_FTX128K1, 1, 128 * 1024, 1024, 0xc000, 0x4000, 0xf8,  8,    0, 0 },
+	{ "FTX256K2",  HCS12_FLASH_MODULE_FTX256K2, 2, 256 * 1024, 1024, 0xc000, 0x4000, 0xe0,  8, 0xf0, 8 },
+	{ "FTX512K4",  HCS12_FLASH_MODULE_FTX512K4, 4, 512 * 1024, 1024, 0xc000, 0x4000, 0xe0, 32,    0, 0 },
+	{ NULL,        HCS12_FLASH_MODULE_UNKNOWN,  0,          0,    0,      0,      0,    0,  0,    0, 0 }
 };
 
 hc12mcu_target_t hc12mcu_target;
@@ -390,7 +397,8 @@ void hcs12mcu_partid(uint16_t id, int verbose)
 	if (!verbose)
 		return;
 
-	printf("HCS12 part id <0x%04x> family <%s> memory <%ukB> mask <%u.%u>\n",
+	printf("%s part id <0x%04x> family <%s> memory <%ukB> mask <%u.%u>\n",
+	       (const char *)hc12mcu_target.family_str,
 	       (unsigned int)id,
 	       (const char *)hcs12_family_table[(id >> 12) & 0x000f],
 	       (unsigned int)(hcs12_memory_table[(id >> 8) & 0x000f]),
@@ -413,52 +421,85 @@ int hc12mcu_identify(int verbose)
 	uint32_t ram_size;
 	int i;
 
-	ret = (*hc12mcu_target.read_byte)(HCS12_IO_INITRG, &initrg);
-	if (ret != 0)
-		return ret;
-	ret = (*hc12mcu_target.read_byte)(HCS12_IO_INITRM, &initrm);
-	if (ret != 0)
-		return ret;
-	ret = (*hc12mcu_target.read_byte)(HCS12_IO_INITEE, &initee);
-	if (ret != 0)
-		return ret;
-
-	hc12mcu_target.reg_base = (uint16_t)((initrg & HCS12_IO_INITRG_REG) << 8);
-	hc12mcu_target.ram_base = (uint32_t)((initrm & HCS12_IO_INITRM_RAM) << 8);
-	hc12mcu_target.eeprom_base = (uint32_t)((initee & HCS12_IO_INITEE_EE) << 8);
-
-	if (hc12mcu_target.family >= HC12_FAMILY_HCS12)
+	if (hc12mcu_target.family == HC12_FAMILY_HC12 ||
+	    hc12mcu_target.family == HC12_FAMILY_HCS12)
 	{
-		ret = (*hc12mcu_target.read_word)(HCS12_IO_MEMSIZ, &mem);
+		ret = (*hc12mcu_target.read_byte)(HCS12_IO_INITRG, &initrg);
 		if (ret != 0)
 			return ret;
-		ret = (*hc12mcu_target.read_byte)(HCS12_IO_MISC, &misc);
+		ret = (*hc12mcu_target.read_byte)(HCS12_IO_INITRM, &initrm);
 		if (ret != 0)
 			return ret;
+		ret = (*hc12mcu_target.read_byte)(HCS12_IO_INITEE, &initee);
+		if (ret != 0)
+			return ret;
+
+		hc12mcu_target.reg_base = (uint16_t)((initrg & HCS12_IO_INITRG_REG) << 8);
+		hc12mcu_target.ram_base = (uint32_t)((initrm & HCS12_IO_INITRM_RAM) << 8);
+		hc12mcu_target.eeprom_base = (uint32_t)((initee & HCS12_IO_INITEE_EE) << 8);
+
+		if (hc12mcu_target.family == HC12_FAMILY_HCS12)
+		{
+			ret = (*hc12mcu_target.read_word)(HCS12_IO_MEMSIZ, &mem);
+			if (ret != 0)
+				return ret;
+			ret = (*hc12mcu_target.read_byte)(HCS12_IO_MISC, &misc);
+			if (ret != 0)
+				return ret;
+
+			hc12mcu_target.reg_space = hcs12_reg_space_table[(mem & HCS12_IO_MEMSIZ_REG_SW) >> 15];
+			hc12mcu_target.ram_space = hcs12_ram_space_table[(mem & HCS12_IO_MEMSIZ_RAM_SW) >> 8];
+			ram_size = (uint32_t)hcs12_ram_size_table[(mem & HCS12_IO_MEMSIZ_RAM_SW) >> 8];
+			hc12mcu_target.ram_base &= ~(hc12mcu_target.ram_space - 1);
+			if (initrm & HCS12_IO_INITRM_RAMHAL)
+			{
+				hc12mcu_target.ram_base =
+					hc12mcu_target.ram_base +
+					hc12mcu_target.ram_space -
+					hc12mcu_target.ram_size;
+			}
+			hc12mcu_target.eeprom_space = hcs12_eeprom_space_table[(mem & HCS12_IO_MEMSIZ_EEP_SW) >> 12];
+		}
+		else
+		{
+			hc12mcu_target.reg_space = 0x0800;
+			hc12mcu_target.ram_space = 0x0800;
+			hc12mcu_target.eeprom_space = 0x0800;
+		}
+	}
+	else
+	{
+		/* HCS12X */
+
+		ret = (*hc12mcu_target.read_byte)(HCS12X_IO_MMCCTL1, &misc);
+		if (ret != 0)
+			return ret;
+
+		hc12mcu_target.reg_base = 0x0000;
+		hc12mcu_target.reg_space = 0x0800;
+		hc12mcu_target.eeprom_base = 0x0800;
+		hc12mcu_target.eeprom_space = 0x0800;
+		hc12mcu_target.ram_base = 0x1000;
+		hc12mcu_target.ram_space = 0x3000;
+	}
+
+	if (hc12mcu_target.family == HC12_FAMILY_HCS12 ||
+	    hc12mcu_target.family == HC12_FAMILY_HCS12X)
+	{
 		ret = (*hc12mcu_target.read_byte)(HCS12_IO_FSEC, &fsec);
 		if (ret != 0)
 			return ret;
 
-		hc12mcu_target.reg_space = hcs12_reg_space_table[(mem & HCS12_IO_MEMSIZ_REG_SW) >> 15];
-		hc12mcu_target.ram_space = hcs12_ram_space_table[(mem & HCS12_IO_MEMSIZ_RAM_SW) >> 8];
-		ram_size = (uint32_t)hcs12_ram_size_table[(mem & HCS12_IO_MEMSIZ_RAM_SW) >> 8];
-		hc12mcu_target.ram_base &= ~(hc12mcu_target.ram_space - 1);
-		if (initrm & HCS12_IO_INITRM_RAMHAL)
-		{
-			hc12mcu_target.ram_base =
-				hc12mcu_target.ram_base +
-				hc12mcu_target.ram_space -
-				hc12mcu_target.ram_size;
-		}
-		hc12mcu_target.eeprom_space = hcs12_eeprom_space_table[(mem & HCS12_IO_MEMSIZ_EEP_SW) >> 12];
 		hc12mcu_target.secured = (fsec & HCS12_FLASH_FSEC_SEC) == 0x02 ? FALSE : TRUE;
 	}
 	else
 	{
+		/* HC12 */
+
 		hc12mcu_target.secured = FALSE;
 	}
 
-	if (hc12mcu_target.family == HC12_FAMILY_HC12 && verbose)
+	if (verbose && hc12mcu_target.family == HC12_FAMILY_HC12)
 	{
 		printf("HC12 register base <0x%04x>\n",
 		       (unsigned int)hc12mcu_target.reg_base);
@@ -478,7 +519,7 @@ int hc12mcu_identify(int verbose)
 		}
 	}
 
-	if (hc12mcu_target.family >= HC12_FAMILY_HCS12 && verbose)
+	if (verbose && hc12mcu_target.family == HC12_FAMILY_HCS12)
 	{
 		printf("HCS12 part security <%s> backdoor key <%s>\n",
 		       (const char *)(hc12mcu_target.secured ? "on" : "off"),
@@ -559,6 +600,95 @@ int hc12mcu_identify(int verbose)
 			else
 			{
 				printf("HCS12 FLASH block <%u> protection all <%s> high area <%s> low area <%s>\n",
+				       (unsigned int)i,
+				       (const char *)((fprot & HCS12_FLASH_FPROT_FPOPEN) ? "off" : "on"),
+				       (const char *)((fprot & HCS12_FLASH_FPROT_FPHS) == HCS12_FLASH_FPROT_FPHS ? "off" :
+						      hcs12_flash_prot_area_table[(fprot & HCS12_FLASH_FPROT_FPHS) >> 3]),
+				       (const char *)((fprot & HCS12_FLASH_FPROT_FPLS) == HCS12_FLASH_FPROT_FPLS ? "off" :
+						      hcs12_flash_prot_area_table[(fprot & HCS12_FLASH_FPROT_FPLS) >> 0]));
+			}
+		}
+	}
+
+	if (verbose && hc12mcu_target.family == HC12_FAMILY_HCS12X)
+	{
+		printf("HCS12X part security <%s> backdoor key <%s>\n",
+		       (const char *)(hc12mcu_target.secured ? "on" : "off"),
+		       (const char *)((fsec & HCS12_FLASH_FSEC_KEYEN) ? "enabled" : "disabled"));
+		printf("HCS12X register space <%ukB> address range <0x%04x-0x%04x>\n",
+		       (unsigned int)(hc12mcu_target.reg_space / 1024),
+		       (unsigned int)hc12mcu_target.reg_base,
+		       (unsigned int)(hc12mcu_target.reg_base + hc12mcu_target.reg_space - 1));
+		printf("HCS12X RAM size <%ukB> space <%ukB> address range <0x%04x-0x%04x>\n",
+		       (unsigned int)(hc12mcu_target.ram_size / 1024),
+		       (unsigned int)(hc12mcu_target.ram_space / 1024),
+		       (unsigned int)hc12mcu_target.ram_base,
+		       (unsigned int)(hc12mcu_target.ram_base + hc12mcu_target.ram_space - 1));
+#if 0
+		if (hc12mcu_target.eeprom_size == 0)
+			printf("HCS12 EEPROM not present\n");
+		else
+		{
+			ret = (*hc12mcu_target.read_byte)(HCS12_IO_EPROT, &eprot);
+			if (ret != 0)
+				return ret;
+
+			printf("HCS12 EEPROM module <%s> state <%s>\n",
+			       (const char *)hc12mcu_target.eeprom_module_str,
+			       (const char *)((initee & HCS12_IO_INITEE_EEON) ? "enabled" : "disabled"));
+			printf("HCS12 EEPROM size <%ukB> space <%ukB> address range <0x%04x-0x%04x>\n",
+			       (unsigned int)(hc12mcu_target.eeprom_size / 1024),
+			       (unsigned int)(hc12mcu_target.eeprom_space / 1024),
+			       (unsigned int)hc12mcu_target.eeprom_base,
+			       (unsigned int)(hc12mcu_target.eeprom_base + hc12mcu_target.eeprom_size - 1));
+			if (eprot & HCS12_IO_EPROT_EPDIS)
+			{
+				printf("HCS12 EEPROM protection all <%s> address range <off>\n",
+				       (const char *)((eprot & HCS12_IO_EPROT_EPOPEN) ? "off" : "on"));
+			}
+			else
+			{
+				printf("HCS12 EEPROM protection all <%s> address range <0x%04x-0x%04x %uB%s>\n",
+				       (const char *)((eprot & HCS12_IO_EPROT_EPOPEN) ? "off" : "on"),
+				       (unsigned int)(hc12mcu_target.eeprom_base + hc12mcu_target.eeprom_size -
+						      hcs12_eeprom_prot_area_table[eprot & HCS12_IO_EPROT_EP].size),
+				       (unsigned int)(hc12mcu_target.eeprom_base + hc12mcu_target.eeprom_size - 1),
+				       (unsigned int)hcs12_eeprom_prot_area_table[eprot & HCS12_IO_EPROT_EP].size,
+				       (const char *)((eprot & HCS12_IO_EPROT_EPOPEN) ? "" : " ignored"));
+			}
+		}
+#endif
+		printf("HCS12X FLASH module <%s> size <%ukB> state <%s> ROMHM <%s>\n",
+		       (const char *)hc12mcu_target.flash_module_str,
+		       (unsigned int)(hc12mcu_target.flash_size / 1024),
+		       (const char *)((misc & HCS12X_IO_MMCCTL1_ROMON) ? "enabled" : "disabled"),
+		       (const char *)((misc & HCS12X_IO_MMCCTL1_ROMHM) ? "yes" : "no"));
+
+		for (i = 0; i < hc12mcu_target.flash_blocks; ++ i)
+		{
+			if (hc12mcu_target.flash_blocks > 1)
+			{
+				ret = (*hc12mcu_target.write_byte)(HCS12_IO_FCNFG, (uint8_t)i);
+				if (ret != 0)
+					return ret;
+			}
+
+			ret = (*hc12mcu_target.read_byte)(HCS12_IO_FPROT, &fprot);
+			if (ret != 0)
+				return ret;
+
+			if (hc12mcu_target.flash_blocks == 1)
+			{
+				printf("HCS12X FLASH protection all <%s> high area <%s> low area <%s>\n",
+				       (const char *)((fprot & HCS12_FLASH_FPROT_FPOPEN) ? "off" : "on"),
+				       (const char *)((fprot & HCS12_FLASH_FPROT_FPHS) == HCS12_FLASH_FPROT_FPHS ? "off" :
+						      hcs12_flash_prot_area_table[(fprot & HCS12_FLASH_FPROT_FPHS) >> 3]),
+				       (const char *)((fprot & HCS12_FLASH_FPROT_FPLS) == HCS12_FLASH_FPROT_FPLS ? "off" :
+						      hcs12_flash_prot_area_table[(fprot & HCS12_FLASH_FPROT_FPLS) >> 0]));
+			}
+			else
+			{
+				printf("HCS12X FLASH block <%u> protection all <%s> high area <%s> low area <%s>\n",
 				       (unsigned int)i,
 				       (const char *)((fprot & HCS12_FLASH_FPROT_FPOPEN) ? "off" : "on"),
 				       (const char *)((fprot & HCS12_FLASH_FPROT_FPHS) == HCS12_FLASH_FPROT_FPHS ? "off" :

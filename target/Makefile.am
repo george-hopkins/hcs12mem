@@ -1,6 +1,5 @@
 # hc12mem - HC12 memory reader & writer
 # Makefile.am: automake Makefile template
-# $Id$
 #
 # Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
 #
@@ -49,7 +48,9 @@ pkgdata_DATA = \
 	mc9s12h128.dat \
 	mc9s12h256.dat \
 	mc9s12ne64.dat \
-	mc9s12uf32.dat
+	mc9s12uf32.dat \
+	mc9s12xd256.dat \
+	mc9s12xd512.dat
 
 EXTRA_DIST = $(pkgdata_DATA) \
 	agent.h \

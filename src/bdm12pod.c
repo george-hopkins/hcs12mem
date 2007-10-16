@@ -505,6 +505,8 @@ static int bdm12pod_set_param(unsigned long osc,
 		ret = bdm12pod_dialog(eq, sizeof(eq), NULL, 0);
 		if (ret != 0)
 			return ret;
+
+		q[2] = BDM12POD_PARAM_ECLK_EXT;
 	}
 	else
 	{

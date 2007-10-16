@@ -1,3 +1,10 @@
+2007-04-10  Michal Konieczny  <mk@m.mfk.net.pl>
+
+	* src/bdm12pod.c: fixed bug in setting extended speed
+	(other than 1/2/4/8MHz)
+
+	* src/hc12mem.c: preliminary support for recognizing S12X chips
+
 2006-02-06  Michal Konieczny  <mk@m.mfk.net.pl>
 
 	* src/bdm12pod.c:

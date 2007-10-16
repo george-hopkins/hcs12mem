@@ -1,6 +1,5 @@
 dnl hc12mem - HC12 memory reader & writer
 dnl acinclude.m4: additional autoconf tests
-dnl $Id$
 dnl
 dnl Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
 dnl

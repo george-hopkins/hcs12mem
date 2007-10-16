@@ -38,7 +38,7 @@
 /* program info and usage strings */
 
 static const char *PRG_INFO =
-"HC12 memory loader V%s (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>\n\n";
+"HC12 memory loader V%s (C) 2005-2007 Michal Konieczny <mk@cml.mfk.net.pl>\n\n";
 static const char *PRG_USAGE =
 	"Usage: hc12mem [options]\n"
 	"  -h, --help\n"

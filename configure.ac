@@ -1,6 +1,5 @@
 dnl hc12mem - HC12 memory reader & writer
 dnl configure.in: configure script template
-dnl $Id$
 dnl
 dnl Copyright (C) 2005,2006 Michal Konieczny <mk@cml.mfk.net.pl>
 dnl
@@ -19,7 +18,7 @@ dnl   along with this program; if not, write to the Free Software
 dnl   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 AC_INIT(src/hc12mem.c)
-AM_INIT_AUTOMAKE([hc12mem], [1.3.1])
+AM_INIT_AUTOMAKE([hc12mem], [1.3.2])
 AM_CONFIG_HEADER(config.h)
 AC_CANONICAL_HOST
 AC_PROG_MAKE_SET
