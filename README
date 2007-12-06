@@ -1,4 +1,4 @@
-hc12mem is a command line tool for reading/writing HCS12 MCU memories.
+hcs12mem is a command line tool for reading/writing Freescale S12 MCU memories.
 
 Communication with target device:
 * BDM - Background Debug Module, via special interface called BDM POD
@@ -24,8 +24,8 @@ NE64.
 
 Installation:
 
-tar -xzf <hc12mem-x.x.tar.gz>
-cd hc12mem-x.x
+tar -xzf <hcs12mem-x.x.tar.gz>
+cd hcs12mem-x.x
 ./configure
 make
 su
@@ -38,10 +38,10 @@ required anymore, because target agents are included in S-record files form.
 
 Using TBDML as target interface requires installation of libusb.
 
-For usage help, see `man hc12mem`
+For usage help, see `man hcs12mem`
 
-http://cml.mfk.net.pl/hc12mem
+http://cml.mfk.net.pl/hcs12mem
 
-(C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+(C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 
 $Id$

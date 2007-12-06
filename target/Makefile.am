@@ -1,7 +1,7 @@
-# hc12mem - HC12 memory reader & writer
+# hcs12mem - HC12/S12 memory reader & writer
 # Makefile.am: automake Makefile template
 #
-# Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+# Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

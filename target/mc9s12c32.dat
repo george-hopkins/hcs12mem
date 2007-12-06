@@ -1,8 +1,8 @@
-# hc12mem - HC12 memory reader & writer
+# hcs12mem - HC12/S12 memory reader & writer
 # mc9s12c32.dat: target description - single chip MC9S12C32 MCU
 # $Id$
 #
-# Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+# Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,13 +21,13 @@
 info single chip MC9S12C32 MCU
 
 mcu MC9S12C32
-family HCS12
+family S12
 ram_size 0x0800
 eeprom_module NONE
 flash_module FTS32K
 
-# INITRM = 0x38
-bdm_init_byte 0x0010 0x38
+# INITRM = 0x39
+bdm_init_byte 0x0010 0x39
 
 bdm_startup_delay 100
 bdm_agent bdm.s19

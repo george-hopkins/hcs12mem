@@ -1,4 +1,4 @@
-# hc12mem - HC12 memory reader & writer
+# hcs12mem - HC12/S12 memory reader & writer
 # Makefile.hcs12: rules for processing HCS12 files
 #
 # Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>

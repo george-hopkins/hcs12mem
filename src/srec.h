@@ -1,9 +1,10 @@
 /*
-    hc12mem - HC12 memory reader & writer
-    srec.h: S-record file access routines
-    $Id$
+    hcs12mem - HC12/S12 memory reader & writer
+    Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 
-    Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+    srec.h: S-record file access routines
+
+    $Id$
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -46,11 +47,33 @@
 
 #define SREC_LINE_LEN_MAX (2 + 2 + 8 + 255 * 2 + 2 + 2 + 1)
 
-int srec_read(const char *file, char *info, size_t info_len,
-	void *buf, size_t buf_len, uint32_t *entry,
-	uint32_t *addr_min, uint32_t *addr_max, uint32_t (*atc)(uint32_t addr));
-int srec_write(const char *file, const char *info,
-	uint32_t addr, size_t len, uint8_t *buf, uint32_t entry,
-	uint32_t (*atc)(uint32_t addr), int skip_empty, size_t block_size);
+int srec_read(
+	const char *file,
+	char *info,
+	size_t info_len,
+	void *buf,
+	size_t buf_len,
+	uint32_t *entry_raw,
+	uint32_t *entry,
+	uint32_t *addr_min,
+	uint32_t *addr_max,
+	uint32_t (*atc)(uint32_t addr)
+	);
+
+#define SREC_ENTRY_MODE_RAW       0
+#define SREC_ENTRY_MODE_TRANSLATE 1
+
+int srec_write(
+	const char *file,
+	const char *info,
+	uint32_t addr,
+	size_t len,
+	uint8_t *buf,
+	uint32_t entry,
+	uint32_t (*atc)(uint32_t addr),
+	int skip_empty,
+	size_t block_size,
+	int entry_mode
+	);
 
 #endif /* __SREC_H */

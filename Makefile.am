@@ -1,7 +1,7 @@
-# hc12mem - HC12 memory reader & writer
+# hcs12mem - HC12/S12 memory reader & writer
 # Makefile.am: automake Makefile template
 #
-# Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+# Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ SUBDIRS = src test target doc
 
 EXTRA_DIST = \
 	autogen \
-	hc12mem.dsw
+	hcs12mem.dsw
 
 #AUX_DIST = \
 #	install-sh \
@@ -44,9 +44,28 @@ CLEANFILES = *~
 dist-win32:
 	rm -f $(PACKAGE)-$(VERSION).zip
 	zip -j $(PACKAGE)-$(VERSION).zip \
-		AUTHORS COPYING NEWS README \
-		out.win32/release/hc12mem.exe \
-		target/*.dat \
-		target/bdm/bdm.s19 \
-		target/lrae/lrae.s19 \
-		doc/hc12mem.html
+		@srcdir@/AUTHORS \
+		@srcdir@/COPYING \
+		@srcdir@/NEWS \
+		@srcdir@/README \
+		@srcdir@/out.win32/release/hcs12mem.exe \
+		@srcdir@/target/*.dat \
+		@srcdir@/target/bdm/bdm.s19 \
+		@srcdir@/target/lrae/lrae.s19 \
+		@srcdir@/doc/hcs12mem.html
+
+dist-dpkg:
+	DPKGTMP=dpkg.tmp; \
+	rm -rf $$DPKGTMP; \
+	mkdir -p \
+		$$DPKGTMP/DEBIAN \
+		$$DPKGTMP/usr/local/bin \
+		$$DPKGTMP/usr/local/share/hcs12mem \
+		$$DPKGTMP/usr/local/share/man/man1; \
+	cp @srcdir@/packages/DEBIAN/control $$DPKGTMP/DEBIAN; \
+	cp src/hcs12mem $$DPKGTMP/usr/local/bin; \
+	cp @srcdir@/target/*.dat $$DPKGTMP/usr/local/share/hcs12mem; \
+	cp @srcdir@/target/bdm/bdm.s19 $$DPKGTMP/usr/local/share/hcs12mem; \
+	cp @srcdir@/target/lrae/lrae.s19 $$DPKGTMP/usr/local/share/hcs12mem; \
+	cp doc/hcs12mem.1 $$DPKGTMP/usr/local/share/man/man1; \
+	dpkg -b $$DPKGTMP hcs12mem.deb

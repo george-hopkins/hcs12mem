@@ -1,7 +1,7 @@
-dnl hc12mem - HC12 memory reader & writer
+dnl hcs12mem - HC12/S12 memory reader & writer
 dnl acinclude.m4: additional autoconf tests
 dnl
-dnl Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+dnl Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 dnl
 dnl   This program is free software; you can redistribute it and/or modify
 dnl   it under the terms of the GNU General Public License as published by

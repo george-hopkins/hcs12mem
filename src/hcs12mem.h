@@ -1,9 +1,10 @@
 /*
-    hc12mem - HC12 memory reader & writer
-    hc12mem.h: main module - startup and auxiliary routines
-    $Id$
+    hcs12mem - HC12/S12 memory reader & writer
+    Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 
-    Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+    hcs12mem.h: main module - startup and auxiliary routines
+
+    $Id$
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -20,24 +21,24 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef __HC12MEM_H
-#define __HC12MEM_H
+#ifndef __HCS12MEM_H
+#define __HCS12MEM_H
 
 #include "sys.h"
 
 #ifndef VERSION
-#define VERSION "1.3.2"
+#define VERSION "1.4.1b1"
 #endif
 
 /* default S-record size */
 
-#define HC12MEM_DEFAULT_SREC_SIZE 16
+#define HCS12MEM_DEFAULT_SREC_SIZE 16
 
 /* supported FLASH addressing variants */
 
-#define HC12MEM_FLASH_ADDR_NON_BANKED    0
-#define HC12MEM_FLASH_ADDR_BANKED_LINEAR 1
-#define HC12MEM_FLASH_ADDR_BANKED_PPAGE  2
+#define HCS12MEM_FLASH_ADDR_NON_BANKED    0
+#define HCS12MEM_FLASH_ADDR_BANKED_LINEAR 1
+#define HCS12MEM_FLASH_ADDR_BANKED_PPAGE  2
 
 /* program options */
 
@@ -63,17 +64,17 @@ typedef struct
 	int keep_lrae;
 	int tbdml_bulk;
 }
-hc12mem_options_t;
+hcs12mem_options_t;
 
 /* target info list record */
 
-typedef struct hc12mem_target_info_t
+typedef struct hcs12mem_target_info_t
 {
 	char *key;
 	char *value;
-	struct hc12mem_target_info_t *next;
+	struct hcs12mem_target_info_t *next;
 }
-hc12mem_target_info_t;
+hcs12mem_target_info_t;
 
 /* target connection handler */
 
@@ -95,18 +96,18 @@ typedef struct
 	int (*flash_protect)(const char *opt);
 	int (*reset)(void);
 }
-hc12mem_target_handler_t;
+hcs12mem_target_handler_t;
 
 /* globals */
 
-extern hc12mem_options_t options;
-extern char hc12mem_data_dir[];
+extern hcs12mem_options_t options;
+extern char hcs12mem_data_dir[];
 
 void error(const char *fmt, ...);
 unsigned long progress_start(const char *title);
 void progress_stop(unsigned long t, const char *title, uint32_t bytes);
 void progress_report(uint32_t n, uint32_t total);
-const char *hc12mem_target_info(const char *key, int first);
-int hc12mem_target_param(const char *key, uint32_t *value, uint32_t def);
+const char *hcs12mem_target_info(const char *key, int first);
+int hcs12mem_target_param(const char *key, uint32_t *value, uint32_t def);
 
-#endif /* __HC12MEM_H */
+#endif /* __HCS12MEM_H */

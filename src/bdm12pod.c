@@ -1,9 +1,10 @@
 /*
-    hc12mem - HC12 memory reader & writer
-    bdm12pod.c: Kevin Ross' BDM12POD driver
-    $Id$
+    hcs12mem - HCS12/S12 memory reader & writer
+    Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 
-    Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+    bdm12pod.c: Kevin Ross' BDM12POD driver
+
+    $Id$
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -20,7 +21,7 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "hc12mem.h"
+#include "hcs12mem.h"
 #include "bdm12pod.h"
 #include "serial.h"
 
@@ -544,7 +545,7 @@ static int bdm12pod_set_param(unsigned long osc,
 
 static int bdm12pod_background(void)
 {
-	return bdm12pod_cmd(HC12BDM_CMD_HW_BACKGROUND, "BACKGROUND");
+	return bdm12pod_cmd(HCS12BDM_CMD_HW_BACKGROUND, "BACKGROUND");
 }
 
 
@@ -559,13 +560,13 @@ static int bdm12pod_background(void)
 
 static int bdm12pod_ack_enable(void)
 {
-	return bdm12pod_cmd(HC12BDM_CMD_HW_ACK_ENABLE, "ACK_ENABLE");
+	return bdm12pod_cmd(HCS12BDM_CMD_HW_ACK_ENABLE, "ACK_ENABLE");
 }
 
 
 static int bdm12pod_ack_disable(void)
 {
-	return bdm12pod_cmd(HC12BDM_CMD_HW_ACK_DISABLE, "ACK_DISABLE");
+	return bdm12pod_cmd(HCS12BDM_CMD_HW_ACK_DISABLE, "ACK_DISABLE");
 }
 
 
@@ -585,7 +586,7 @@ static int bdm12pod_read_bd_byte(uint16_t addr, uint8_t *v)
 	uint8_t a[2];
 	int ret;
 
-	q[0] = HC12BDM_CMD_HW_READ_BD_BYTE;
+	q[0] = HCS12BDM_CMD_HW_READ_BD_BYTE;
 	uint16_host2be_to_buf(q + 1, addr);
 
 	ret = bdm12pod_dialog(q, sizeof(q), a, sizeof(a));
@@ -621,7 +622,7 @@ static int bdm12pod_read_bd_word(uint16_t addr, uint16_t *v)
 	uint8_t a[2];
 	int ret;
 
-	q[0] = HC12BDM_CMD_HW_READ_BD_WORD;
+	q[0] = HCS12BDM_CMD_HW_READ_BD_WORD;
 	uint16_host2be_to_buf(q + 1, addr);
 
 	ret = bdm12pod_dialog(q, sizeof(q), a, sizeof(a));
@@ -657,7 +658,7 @@ static int bdm12pod_read_byte(uint16_t addr, uint8_t *v)
 	uint8_t a[2];
 	int ret;
 
-	q[0] = HC12BDM_CMD_HW_READ_BYTE;
+	q[0] = HCS12BDM_CMD_HW_READ_BYTE;
 	uint16_host2be_to_buf(q + 1, addr);
 
 	ret = bdm12pod_dialog(q, sizeof(q), a, sizeof(a));
@@ -693,7 +694,7 @@ static int bdm12pod_read_word(uint16_t addr, uint16_t *v)
 	uint8_t a[2];
 	int ret;
 
-	q[0] = HC12BDM_CMD_HW_READ_WORD;
+	q[0] = HCS12BDM_CMD_HW_READ_WORD;
 	uint16_host2be_to_buf(q + 1, addr);
 
 	ret = bdm12pod_dialog(q, sizeof(q), a, sizeof(a));
@@ -728,7 +729,7 @@ static int bdm12pod_write_bd_byte(uint16_t addr, uint8_t v)
 	uint8_t q[5];
 	int ret;
 
-	q[0] = HC12BDM_CMD_HW_WRITE_BD_BYTE;
+	q[0] = HCS12BDM_CMD_HW_WRITE_BD_BYTE;
 	uint16_host2be_to_buf(q + 1, addr);
 	if ((addr & 0x0001) == 0)
 	{
@@ -771,7 +772,7 @@ static int bdm12pod_write_bd_word(uint16_t addr, uint16_t v)
 	uint8_t q[5];
 	int ret;
 
-	q[0] = HC12BDM_CMD_HW_WRITE_BD_WORD;
+	q[0] = HCS12BDM_CMD_HW_WRITE_BD_WORD;
 	uint16_host2be_to_buf(q + 1, addr);
 	uint16_host2be_to_buf(q + 3, v);
 
@@ -805,7 +806,7 @@ static int bdm12pod_write_byte(uint16_t addr, uint8_t v)
 	uint8_t q[5];
 	int ret;
 
-	q[0] = HC12BDM_CMD_HW_WRITE_BYTE;
+	q[0] = HCS12BDM_CMD_HW_WRITE_BYTE;
 	uint16_host2be_to_buf(q + 1, addr);
 	if ((addr & 0x0001) == 0)
 	{
@@ -848,7 +849,7 @@ static int bdm12pod_write_word(uint16_t addr, uint16_t v)
 	uint8_t q[5];
 	int ret;
 
-	q[0] = HC12BDM_CMD_HW_WRITE_WORD;
+	q[0] = HCS12BDM_CMD_HW_WRITE_WORD;
 	uint16_host2be_to_buf(q + 1, addr);
 	uint16_host2be_to_buf(q + 3, v);
 
@@ -882,7 +883,7 @@ static int bdm12pod_read_next(uint16_t *v)
 	uint8_t a[2];
 	int ret;
 
-	q[0] = HC12BDM_CMD_FW_READ_NEXT;
+	q[0] = HCS12BDM_CMD_FW_READ_NEXT;
 	ret = bdm12pod_dialog(q, sizeof(q), a, sizeof(a));
 	if (ret != 0)
 		return ret;
@@ -917,22 +918,22 @@ static int bdm12pod_read_reg(int reg, uint16_t *v)
 
 	switch (reg)
 	{
-		case HC12BDM_REG_PC:
-			q[0] = HC12BDM_CMD_FW_READ_PC;
+		case HCS12BDM_REG_PC:
+			q[0] = HCS12BDM_CMD_FW_READ_PC;
 			break;
-		case HC12BDM_REG_D:
-			q[0] = HC12BDM_CMD_FW_READ_D;
+		case HCS12BDM_REG_D:
+			q[0] = HCS12BDM_CMD_FW_READ_D;
 			break;
-		case HC12BDM_REG_X:
-			q[0] = HC12BDM_CMD_FW_READ_X;
+		case HCS12BDM_REG_X:
+			q[0] = HCS12BDM_CMD_FW_READ_X;
 			break;
-		case HC12BDM_REG_Y:
-			q[0] = HC12BDM_CMD_FW_READ_Y;
+		case HCS12BDM_REG_Y:
+			q[0] = HCS12BDM_CMD_FW_READ_Y;
 			break;
-		case HC12BDM_REG_SP:
-			q[0] = HC12BDM_CMD_FW_READ_SP;
+		case HCS12BDM_REG_SP:
+			q[0] = HCS12BDM_CMD_FW_READ_SP;
 			break;
-		case HC12BDM_REG_CCR:
+		case HCS12BDM_REG_CCR:
 			/* not supported - skip to default: */
 		default:
 			return EINVAL;
@@ -968,7 +969,7 @@ static int bdm12pod_write_next(uint16_t v)
 	uint8_t q[3];
 	int ret;
 
-	q[0] = HC12BDM_CMD_FW_WRITE_NEXT;
+	q[0] = HCS12BDM_CMD_FW_WRITE_NEXT;
 	uint16_host2be_to_buf(q + 1, v);
 
 	ret = bdm12pod_dialog(q, sizeof(q), NULL, 0);
@@ -1002,22 +1003,22 @@ static int bdm12pod_write_reg(int reg, uint16_t v)
 
 	switch (reg)
 	{
-		case HC12BDM_REG_PC:
-			q[0] = HC12BDM_CMD_FW_WRITE_PC;
+		case HCS12BDM_REG_PC:
+			q[0] = HCS12BDM_CMD_FW_WRITE_PC;
 			break;
-		case HC12BDM_REG_D:
-			q[0] = HC12BDM_CMD_FW_WRITE_D;
+		case HCS12BDM_REG_D:
+			q[0] = HCS12BDM_CMD_FW_WRITE_D;
 			break;
-		case HC12BDM_REG_X:
-			q[0] = HC12BDM_CMD_FW_WRITE_X;
+		case HCS12BDM_REG_X:
+			q[0] = HCS12BDM_CMD_FW_WRITE_X;
 			break;
-		case HC12BDM_REG_Y:
-			q[0] = HC12BDM_CMD_FW_WRITE_Y;
+		case HCS12BDM_REG_Y:
+			q[0] = HCS12BDM_CMD_FW_WRITE_Y;
 			break;
-		case HC12BDM_REG_SP:
-			q[0] = HC12BDM_CMD_FW_WRITE_SP;
+		case HCS12BDM_REG_SP:
+			q[0] = HCS12BDM_CMD_FW_WRITE_SP;
 			break;
-		case HC12BDM_REG_CCR:
+		case HCS12BDM_REG_CCR:
 			/* not supported - skip to default: */
 		default:
 			return EINVAL;
@@ -1050,25 +1051,25 @@ static int bdm12pod_write_reg(int reg, uint16_t v)
 
 static int bdm12pod_go(void)
 {
-	return bdm12pod_cmd(HC12BDM_CMD_FW_GO, "GO");
+	return bdm12pod_cmd(HCS12BDM_CMD_FW_GO, "GO");
 }
 
 
 static int bdm12pod_go_until(void)
 {
-	return bdm12pod_cmd(HC12BDM_CMD_FW_GO_UNTIL, "GO_UNTIL");
+	return bdm12pod_cmd(HCS12BDM_CMD_FW_GO_UNTIL, "GO_UNTIL");
 }
 
 
 static int bdm12pod_trace1(void)
 {
-	return bdm12pod_cmd(HC12BDM_CMD_FW_TRACE1, "TRACE1");
+	return bdm12pod_cmd(HCS12BDM_CMD_FW_TRACE1, "TRACE1");
 }
 
 
 static int bdm12pod_taggo(void)
 {
-	return bdm12pod_cmd(HC12BDM_CMD_FW_TAGGO, "TAGGO");
+	return bdm12pod_cmd(HCS12BDM_CMD_FW_TAGGO, "TAGGO");
 }
 
 
@@ -1305,7 +1306,7 @@ static int bdm12pod_close(void)
 
 /* POD handler */
 
-hc12bdm_handler_t bdm12pod_bdm_handler =
+hcs12bdm_handler_t bdm12pod_bdm_handler =
 {
 	bdm12pod_open,
 	bdm12pod_close,

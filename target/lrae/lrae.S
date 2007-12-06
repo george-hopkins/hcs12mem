@@ -1,10 +1,10 @@
 /*
-    hc12mem - HC12 memory reader & writer
+    hcs12mem - HC12/S12 memory reader & writer
     generic_f1b_ram1k_lrae.S: generic RAM agent for MC9S12
     with single FLASH block and at least 1k of RAM, run via LRAE
     $Id$
 
-    Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+    Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ _start:
 	bsr sci_rx_word
 	cmpd #2000
 	bhs setup_xtal_ok
-	ldaa #HC12_AGENT_ERROR_XTAL
+	ldaa #HCS12_AGENT_ERROR_XTAL
 	bsr sci_tx
 	bra _start
 setup_xtal_ok:
@@ -58,7 +58,7 @@ setup_prdiv_set:
 	staa _io+ECLKDIV
 	staa _io+FCLKDIV
 
-	ldaa #HC12_AGENT_ERROR_NONE
+	ldaa #HCS12_AGENT_ERROR_NONE
 	bsr sci_tx
 
 
@@ -88,37 +88,37 @@ cmd_sum:
 	cba
 	beq cmd_ok
 error_sum:
-	ldaa #HC12_AGENT_ERROR_SUM
+	ldaa #HCS12_AGENT_ERROR_SUM
 	bsr sci_tx
 	bra loop
 cmd_ok:
-	ldaa #HC12_AGENT_ERROR_NONE
+	ldaa #HCS12_AGENT_ERROR_NONE
 	bsr sci_tx
 
 	ldaa cmd
-;	cmpa #HC12_AGENT_CMD_EEPROM_MASS_ERASE
+;	cmpa #HCS12_AGENT_CMD_EEPROM_MASS_ERASE
 ;	beq eeprom_mass_erase
-;	cmpa #HC12_AGENT_CMD_EEPROM_ERASE_VERIFY
+;	cmpa #HCS12_AGENT_CMD_EEPROM_ERASE_VERIFY
 ;	beq eeprom_erase_verify
-;	cmpa #HC12_AGENT_CMD_EEPROM_READ
+;	cmpa #HCS12_AGENT_CMD_EEPROM_READ
 ;	beq eeprom_read
-;	cmpa #HC12_AGENT_CMD_EEPROM_WRITE
+;	cmpa #HCS12_AGENT_CMD_EEPROM_WRITE
 ;	beq eeprom_write
-	cmpa #HC12_AGENT_CMD_FLASH_MASS_ERASE
+	cmpa #HCS12_AGENT_CMD_FLASH_MASS_ERASE
 	beq flash_mass_erase
-	cmpa #HC12_AGENT_CMD_FLASH_ERASE_VERIFY
+	cmpa #HCS12_AGENT_CMD_FLASH_ERASE_VERIFY
 	beq flash_erase_verify
-	cmpa #HC12_AGENT_CMD_FLASH_ERASE_SECTOR
+	cmpa #HCS12_AGENT_CMD_FLASH_ERASE_SECTOR
 	beq flash_erase_sector
-	cmpa #HC12_AGENT_CMD_FLASH_READ
+	cmpa #HCS12_AGENT_CMD_FLASH_READ
 	beq flash_read
-	cmpa #HC12_AGENT_CMD_FLASH_WRITE
+	cmpa #HCS12_AGENT_CMD_FLASH_WRITE
 	beq flash_write
-	ldaa #HC12_AGENT_ERROR_CMD
+	ldaa #HCS12_AGENT_ERROR_CMD
 	bsr sci_tx
 	bra loop
 done:
-	ldaa #HC12_AGENT_ERROR_NONE
+	ldaa #HCS12_AGENT_ERROR_NONE
 	bsr sci_tx
 	bra loop
 
@@ -148,7 +148,7 @@ done:
 ;	brclr _io+ESTAT,#ESTAT_BLANK,eeprom_erase_verify_error
 ;	bra done
 ;eeprom_erase_verify_error:
-;	ldaa #HC12_AGENT_ERROR_VERIFY
+;	ldaa #HCS12_AGENT_ERROR_VERIFY
 ;	bsr sci_tx
 ;	bra loop
 
@@ -234,7 +234,7 @@ flash_erase_verify:
 	brclr _io+FSTAT,#FSTAT_BLANK,flash_erase_verify_error
 	bra done
 flash_erase_verify_error:
-	ldaa #HC12_AGENT_ERROR_VERIFY
+	ldaa #HCS12_AGENT_ERROR_VERIFY
 	bsr sci_tx
 	bra loop
 

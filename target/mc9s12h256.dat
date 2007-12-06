@@ -1,8 +1,8 @@
-# hc12mem - HC12 memory reader & writer
+# hcs12mem - HC12/S12 memory reader & writer
 # mc9s12h256.dat: target description - single chip MC9S12H256 MCU
 # $Id$
 #
-# Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+# Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@
 info single chip MC9S12H256 MCU
 
 mcu MC9S12H256
-family HCS12
+family S12
 ram_size 0x3000
 eeprom_module EETS4K
 flash_module FTS256K

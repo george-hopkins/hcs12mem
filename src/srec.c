@@ -1,9 +1,10 @@
 /*
-    hc12mem - HC12 memory reader & writer
-    srec.c: S-record file access routines
-    $Id$
+    hcs12mem - HC12/S12 memory reader & writer
+    Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 
-    Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+    srec.c: S-record file access routines
+
+    $Id$
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -20,7 +21,7 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "hc12mem.h"
+#include "hcs12mem.h"
 #include "srec.h"
 
 /*
@@ -81,8 +82,13 @@ static int srec_str2hex(const char *str, uint8_t *b)
  *    status code (errno-like)
  */
 
-static int srec_parse(const char *buf,
-	char *type, uint8_t *cnt, uint32_t *addr, uint8_t *data)
+static int srec_parse(
+	const char *buf,
+	char *type,
+	uint8_t *cnt,
+	uint32_t *addr,
+	uint8_t *data
+	)
 {
 	uint8_t b;
 	uint8_t sum;
@@ -168,8 +174,8 @@ static int srec_parse(const char *buf,
 		return EINVAL;
 	buf += 2;
 	sum += b;
-	if (sum != 0xff)
-		return EINVAL;
+	/*if (sum != 0xff)
+		return EINVAL;*/
 
 	/* end of line */
 
@@ -197,9 +203,18 @@ static int srec_parse(const char *buf,
  *    status code (errno-like)
  */
 
-int srec_read(const char *file, char *info, size_t info_len,
-	void *buf, size_t buf_len, uint32_t *entry,
-	uint32_t *addr_min, uint32_t *addr_max, uint32_t (*atc)(uint32_t addr))
+int srec_read(
+	const char *file,
+	char *info,
+	size_t info_len,
+	void *buf,
+	size_t buf_len,
+	uint32_t *entry_raw,
+	uint32_t *entry,
+	uint32_t *addr_min,
+	uint32_t *addr_max,
+	uint32_t (*atc)(uint32_t addr)
+	)
 {
 	FILE *f;
 	char str[SREC_LINE_LEN_MAX + 1];
@@ -242,18 +257,23 @@ int srec_read(const char *file, char *info, size_t info_len,
 	while (ret == 0 && line != -1 && fgets(str, sizeof(str), f) != NULL)
 	{
 		++ line;
+
 		if (strlen(str) == sizeof(str) - 1)
 		{
-			error("S-record line too long (line #%u)\n",
-			      (unsigned int)line);
+			error("%s:%u: S-record line too long\n",
+				(const char *)file,
+				(unsigned int)line
+				);
 			ret = EINVAL;
 			break;
 		}
 
 		if (srec_parse(str, &type, &cnt, &addr, data) != 0)
 		{
-			error("invalid S-record (line #%u)\n",
-			      (unsigned int)line);
+			error("%s:%u: invalid S-record\n",
+				(const char *)file,
+				(unsigned int)line
+				);
 			ret = EINVAL;
 			break;
 		}
@@ -277,8 +297,11 @@ int srec_read(const char *file, char *info, size_t info_len,
 				if (addr_low >= (uint32_t)buf_len ||
 				    addr_high >= (uint32_t)buf_len)
 				{
-					error("data block address out of range (line #%u)\n",
-					      (unsigned int)line);
+					error("%s:%u: data block address <0x%lX> out of range\n",
+						(const char *)file,
+						(unsigned int)line,
+						(unsigned long)addr
+						);
 					ret = EINVAL;
 				}
 				else
@@ -294,15 +317,25 @@ int srec_read(const char *file, char *info, size_t info_len,
 			case SREC_TYPE_A16_END:
 			case SREC_TYPE_A24_END:
 			case SREC_TYPE_A32_END:
-				addr_low = (*atc)(addr);
-				if (addr != 0 && addr_low >= (uint32_t)buf_len)
+				if (entry_raw != NULL)
 				{
-					error("entry address out of range (line #%u)\n",
-					      (unsigned int)line);
-					ret = EINVAL;
+					*entry_raw = addr;
 				}
-				else if (entry != NULL)
+
+				if (entry != NULL)
+				{
+					addr_low = (*atc)(addr);
+					if (addr != 0 && addr_low >= (uint32_t)buf_len)
+					{
+						error("%s:%u: entry address <0x%lX> out of range\n",
+							(const char *)file,
+							(unsigned int)line,
+							(unsigned long)addr
+							);
+						ret = EINVAL;
+					}
 					*entry = addr_low;
+				}
 				line = -1;
 				break;
 		}
@@ -333,8 +366,13 @@ int srec_read(const char *file, char *info, size_t info_len,
  *    status code (errno-like)
  */
 
-static int srec_write_line(FILE *f, char type,
-	uint32_t addr, size_t len, const uint8_t *data)
+static int srec_write_line(
+	FILE *f,
+	char type,
+	uint32_t addr,
+	size_t len,
+	const uint8_t *data
+	)
 {
 	char str[SREC_LINE_LEN_MAX + 1];
 	const char *fmt;
@@ -420,9 +458,18 @@ static int srec_write_line(FILE *f, char type,
  *    status code (errno-like)
  */
 
-int srec_write(const char *file, const char *info,
-	uint32_t addr, size_t len, uint8_t *buf, uint32_t entry,
-	uint32_t (*atc)(uint32_t addr), int skip_empty, size_t block_size)
+int srec_write(
+	const char *file,
+	const char *info,
+	uint32_t addr,
+	size_t len,
+	uint8_t *buf,
+	uint32_t entry,
+	uint32_t (*atc)(uint32_t addr),
+	int skip_empty,
+	size_t block_size,
+	int entry_mode
+	)
 {
 	FILE *f;
 	size_t n;
@@ -504,7 +551,10 @@ int srec_write(const char *file, const char *info,
 		buf += n;
 	}
 
-	ret = srec_write_line(f, type_end, (*atc)(entry), 0, NULL);
+	if (entry_mode != SREC_ENTRY_MODE_RAW)
+		entry = (*atc)(entry);
+
+	ret = srec_write_line(f, type_end, entry, 0, NULL);
 	if (ret != 0)
 	{
 		fclose(f);

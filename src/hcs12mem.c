@@ -1,9 +1,10 @@
 /*
-    hc12mem - HC12 memory reader & writer
-    hc12mem.c: main module - startup and auxiliary routines
-    $Id$
+    hcs12mem - HC12/S12 memory reader & writer
+    Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 
-    Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+    hcs12mem.c: main module - startup and auxiliary routines
+
+    $Id$
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -20,11 +21,11 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "hc12mem.h"
-#include "hc12mcu.h"
-#include "hc12lrae.h"
-#include "hc12sm.h"
-#include "hc12bdm.h"
+#include "hcs12mem.h"
+#include "hcs12mcu.h"
+#include "hcs12lrae.h"
+#include "hcs12sm.h"
+#include "hcs12bdm.h"
 
 #if HAVE_GETOPT_H
 # include <getopt.h>
@@ -38,9 +39,9 @@
 /* program info and usage strings */
 
 static const char *PRG_INFO =
-"HC12 memory loader V%s (C) 2005-2007 Michal Konieczny <mk@cml.mfk.net.pl>\n\n";
+"hcs12mem: Freescale S12 MCU memory loader V%s (C) 2005-2007 Michal Konieczny <mk@cml.mfk.net.pl>\n\n";
 static const char *PRG_USAGE =
-	"Usage: hc12mem [options]\n"
+	"Usage: hcs12mem [options]\n"
 	"  -h, --help\n"
 	"      show usage info\n"
 	"  -q, --quiet\n"
@@ -119,20 +120,20 @@ static const char *PRG_USAGE =
 
 /* target connection handlers */
 
-static const hc12mem_target_handler_t *hc12mem_target_handler_table[] =
+static const hcs12mem_target_handler_t *hcs12mem_target_handler_table[] =
 {
-	&hc12mem_target_handler_lrae,
-	&hc12mem_target_handler_sm,
-	&hc12mem_target_handler_bdm12pod,
-	&hc12mem_target_handler_tbdml,
+	&hcs12mem_target_handler_lrae,
+	&hcs12mem_target_handler_sm,
+	&hcs12mem_target_handler_bdm12pod,
+	&hcs12mem_target_handler_tbdml,
 	NULL
 };
 
 /* globals */
 
-hc12mem_options_t options;
-char hc12mem_data_dir[SYS_MAX_PATH + 1];
-hc12mem_target_info_t *hc12mem_target_info_head = NULL;
+hcs12mem_options_t options;
+char hcs12mem_data_dir[SYS_MAX_PATH + 1];
+hcs12mem_target_info_t *hcs12mem_target_info_head = NULL;
 static int progress_last;
 
 
@@ -171,10 +172,21 @@ unsigned long progress_start(const char *title)
 	progress_last = 0;
 	if (options.verbose)
 	{
-		printf("%s [                                                  ]\b"
-		       "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b"
-		       "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
-		       (const char *)title);
+		if (isatty(fileno(stdout)))
+		{
+			printf("%s [                                                  ]\b"
+				"\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b"
+				"\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
+				(const char *)title
+				);
+		}
+		else
+		{
+			printf("%s [",
+				(const char *)title
+				);
+		}
+
 		fflush(stdout);
 	}
 
@@ -235,10 +247,18 @@ void progress_report(uint32_t n, uint32_t total)
 	{
 		if (options.verbose && !options.debug)
 		{
-			if (progress_last & 0x01)
-				printf("\b#");
+			if (isatty(1)) /* stdout */
+			{
+				if (progress_last & 0x01)
+					printf("\b#");
+				else
+					printf("-");
+			}
 			else
-				printf("-");
+			{
+				if (progress_last & 0x01)
+					printf("#");
+			}
 			fflush(stdout);
 		}
 		++ progress_last;
@@ -255,7 +275,7 @@ void progress_report(uint32_t n, uint32_t total)
  *    oscillator frequency as number, 0 on error
  */
 
-static unsigned long hc12mem_parse_osc(const char *str)
+static unsigned long hcs12mem_parse_osc(const char *str)
 {
 	unsigned long osc;
 	char *end;
@@ -282,17 +302,17 @@ static unsigned long hc12mem_parse_osc(const char *str)
  *    void
  */
 
-static void hc12mem_target_info_free(void)
+static void hcs12mem_target_info_free(void)
 {
-	hc12mem_target_info_t *next;
+	hcs12mem_target_info_t *next;
 
-	while (hc12mem_target_info_head != NULL)
+	while (hcs12mem_target_info_head != NULL)
 	{
-		free(hc12mem_target_info_head->key);
-		free(hc12mem_target_info_head->value);
-		next = hc12mem_target_info_head->next;
-		free(hc12mem_target_info_head);
-		hc12mem_target_info_head = next;
+		free(hcs12mem_target_info_head->key);
+		free(hcs12mem_target_info_head->value);
+		next = hcs12mem_target_info_head->next;
+		free(hcs12mem_target_info_head);
+		hcs12mem_target_info_head = next;
 	}
 }
 
@@ -306,7 +326,7 @@ static void hc12mem_target_info_free(void)
  *    status code (0 - ok, other value - error code)
  */
 
-static int hc12mem_target_info_read(void)
+static int hcs12mem_target_info_read(void)
 {
 	char file[SYS_MAX_PATH + 1];
 	char buf[256];
@@ -314,14 +334,14 @@ static int hc12mem_target_info_read(void)
 	int ret;
 	char *ptr;
 	char *key;
-	hc12mem_target_info_t *rec;
-	hc12mem_target_info_t **node;
+	hcs12mem_target_info_t *rec;
+	hcs12mem_target_info_t **node;
 
 	if (access(options.target, R_OK) == -1 &&
 	    strchr(options.target, SYS_PATH_SEPARATOR) == NULL)
 	{
 		snprintf(file, sizeof(file), "%s%c%s.dat",
-			 (const char *)hc12mem_data_dir,
+			 (const char *)hcs12mem_data_dir,
 			 (char)SYS_PATH_SEPARATOR,
 			 (const char *)options.target);
 	}
@@ -371,7 +391,7 @@ static int hc12mem_target_info_read(void)
 		if (rec == NULL)
 		{
 		  err_mem:
-			hc12mem_target_info_free();
+			hcs12mem_target_info_free();
 			error("not enough memory\n");
 			ret = ENOMEM;
 			break;
@@ -390,7 +410,7 @@ static int hc12mem_target_info_read(void)
 			goto err_mem;
 		}
 
-		node = &hc12mem_target_info_head;
+		node = &hcs12mem_target_info_head;
 		while (*node != NULL)
 			node = &((*node)->next);
 		*node = rec;
@@ -429,13 +449,13 @@ static int hc12mem_target_info_read(void)
  *    info record value
  */
 
-const char *hc12mem_target_info(const char *key, int first)
+const char *hcs12mem_target_info(const char *key, int first)
 {
-	static hc12mem_target_info_t *rec;
-	hc12mem_target_info_t *ptr;
+	static hcs12mem_target_info_t *rec;
+	hcs12mem_target_info_t *ptr;
 
 	if (first)
-		rec = hc12mem_target_info_head;
+		rec = hcs12mem_target_info_head;
 	if (key == NULL)
 		return NULL;
 	while (rec != NULL)
@@ -461,7 +481,7 @@ const char *hc12mem_target_info(const char *key, int first)
  *    0 - ok, other value - errno status code
  */
 
-int hc12mem_target_param(const char *key, uint32_t *value, uint32_t def)
+int hcs12mem_target_param(const char *key, uint32_t *value, uint32_t def)
 {
 	const char *ptr;
 	unsigned long v;
@@ -469,7 +489,7 @@ int hc12mem_target_param(const char *key, uint32_t *value, uint32_t def)
 
 	*value = def;
 
-	ptr = hc12mem_target_info(key, TRUE);
+	ptr = hcs12mem_target_info(key, TRUE);
 	if (ptr == NULL)
 		return 0;
 
@@ -497,7 +517,7 @@ int hc12mem_target_param(const char *key, uint32_t *value, uint32_t def)
 
 int main(int argc, char *argv[])
 {
-	const hc12mem_target_handler_t *h;
+	const hcs12mem_target_handler_t *h;
 	int c;
 	char *end;
 	int i;
@@ -586,11 +606,11 @@ int main(int argc, char *argv[])
 
 #	if SYS_TYPE_WIN32
 	{
-		strlcpy(hc12mem_data_dir, _pgmptr, sizeof(hc12mem_data_dir));
-		*strrchr(hc12mem_data_dir, SYS_PATH_SEPARATOR) = '\0';
+		strlcpy(hcs12mem_data_dir, _pgmptr, sizeof(hcs12mem_data_dir));
+		*strrchr(hcs12mem_data_dir, SYS_PATH_SEPARATOR) = '\0';
 	}
 #	else
-		strlcpy(hc12mem_data_dir, HC12MEM_DATA_DIR, sizeof(hc12mem_data_dir));
+		strlcpy(hcs12mem_data_dir, HCS12MEM_DATA_DIR, sizeof(hcs12mem_data_dir));
 #	endif
 
 	/* options initial values */
@@ -607,9 +627,9 @@ int main(int argc, char *argv[])
 	options.osc = 0;
 	options.start = 0;
 	options.start_valid = FALSE;
-	options.flash_addr = HC12MEM_FLASH_ADDR_NON_BANKED;
+	options.flash_addr = HCS12MEM_FLASH_ADDR_NON_BANKED;
 	options.include_erased = FALSE;
-	options.srec_size = HC12MEM_DEFAULT_SREC_SIZE;
+	options.srec_size = HCS12MEM_DEFAULT_SREC_SIZE;
 	options.podex_25 = FALSE;
 	options.podex_mem_bug = FALSE;
 	options.keep_lrae = FALSE;
@@ -696,7 +716,7 @@ int main(int argc, char *argv[])
 				break;
 
 			case 'o':
-				options.osc = hc12mem_parse_osc(optarg);
+				options.osc = hcs12mem_parse_osc(optarg);
 				if (options.osc == 0)
 					exit(EXIT_FAILURE);
 				break;
@@ -714,11 +734,11 @@ int main(int argc, char *argv[])
 
 			case 'a':
 				if (strcmp(optarg, "non-banked") == 0)
-					options.flash_addr = HC12MEM_FLASH_ADDR_NON_BANKED;
+					options.flash_addr = HCS12MEM_FLASH_ADDR_NON_BANKED;
 				else if (strcmp(optarg, "banked-linear") == 0)
-					options.flash_addr = HC12MEM_FLASH_ADDR_BANKED_LINEAR;
+					options.flash_addr = HCS12MEM_FLASH_ADDR_BANKED_LINEAR;
 				else if (strcmp(optarg, "banked-ppage") == 0)
-					options.flash_addr = HC12MEM_FLASH_ADDR_BANKED_PPAGE;
+					options.flash_addr = HCS12MEM_FLASH_ADDR_BANKED_PPAGE;
 				else
 				{
 					error("invalid address format: %s\n",
@@ -817,11 +837,11 @@ int main(int argc, char *argv[])
 	}
 
 	h = NULL;
-	for (i = 0; hc12mem_target_handler_table[i] != NULL; ++ i)
+	for (i = 0; hcs12mem_target_handler_table[i] != NULL; ++ i)
 	{
-		if (strcmp(options.iface, hc12mem_target_handler_table[i]->name) == 0)
+		if (strcmp(options.iface, hcs12mem_target_handler_table[i]->name) == 0)
 		{
-			h = hc12mem_target_handler_table[i];
+			h = hcs12mem_target_handler_table[i];
 			break;
 		}
 	}
@@ -837,14 +857,14 @@ int main(int argc, char *argv[])
 
 	/* read target info data */
 
-	ret = hc12mem_target_info_read();
+	ret = hcs12mem_target_info_read();
 	if (ret != 0)
 		exit(EXIT_FAILURE);
 
-	ret = hc12mcu_target_parse();
+	ret = hcs12mcu_target_parse();
 	if (ret != 0)
 	{
-		hc12mem_target_info_free();
+		hcs12mem_target_info_free();
 		exit(EXIT_FAILURE);
 	}
 
@@ -852,7 +872,7 @@ int main(int argc, char *argv[])
 
 	if ((*h->open)() != 0)
 	{
-		hc12mem_target_info_free();
+		hcs12mem_target_info_free();
 		exit(EXIT_FAILURE);
 	}
 
@@ -920,7 +940,7 @@ int main(int argc, char *argv[])
 		if (ret != 0)
 		{
 			(*h->close)();
-			hc12mem_target_info_free();
+			hcs12mem_target_info_free();
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -929,11 +949,11 @@ int main(int argc, char *argv[])
 
 	if ((*h->close)() == -1)
 	{
-		hc12mem_target_info_free();
+		hcs12mem_target_info_free();
 		exit(EXIT_FAILURE);
 	}
 
-	hc12mem_target_info_free();
+	hcs12mem_target_info_free();
 
 	return EXIT_SUCCESS;
 }

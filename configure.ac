@@ -1,7 +1,7 @@
-dnl hc12mem - HC12 memory reader & writer
+dnl hcs12mem - HC12/S12 memory reader & writer
 dnl configure.in: configure script template
 dnl
-dnl Copyright (C) 2005,2006 Michal Konieczny <mk@cml.mfk.net.pl>
+dnl Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 dnl
 dnl   This program is free software; you can redistribute it and/or modify
 dnl   it under the terms of the GNU General Public License as published by
@@ -17,8 +17,8 @@ dnl   You should have received a copy of the GNU General Public License
 dnl   along with this program; if not, write to the Free Software
 dnl   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-AC_INIT(src/hc12mem.c)
-AM_INIT_AUTOMAKE([hc12mem], [1.3.2])
+AC_INIT(src/hcs12mem.c)
+AM_INIT_AUTOMAKE([hcs12mem], [1.4.1])
 AM_CONFIG_HEADER(config.h)
 AC_CANONICAL_HOST
 AC_PROG_MAKE_SET
@@ -114,7 +114,7 @@ AC_OUTPUT([
 	src/Makefile
 	test/Makefile
 	doc/Makefile
-	doc/hc12mem.1
+	doc/hcs12mem.1
 	target/Makefile
 	target/bdm/Makefile
 	target/lrae/Makefile

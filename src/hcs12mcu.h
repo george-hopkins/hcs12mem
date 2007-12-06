@@ -1,6 +1,6 @@
 /*
-    hc12mem - HC12 memory reader & writer
-    hc12mcu.h: MCU target definitions
+    hcs12mem - HC12/S12 memory reader & writer
+    hcs12mcu.h: MCU target definitions
     $Id$
 
     Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
@@ -20,15 +20,15 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef __HC12MCU_H
-#define __HC12MCU_H
+#ifndef __HCS12MCU_H
+#define __HCS12MCU_H
 
-/* HC12 families */
+/* HCS12 families */
 
-#define HC12_FAMILY_UNKNOWN 0
-#define HC12_FAMILY_HC12    1
-#define HC12_FAMILY_HCS12   2
-#define HC12_FAMILY_HCS12X  3
+#define HCS12_FAMILY_UNKNOWN 0
+#define HCS12_FAMILY_HC12    1
+#define HCS12_FAMILY_S12     2
+#define HCS12_FAMILY_S12X    3
 
 /* HCS12 EEPROM modules */
 
@@ -134,32 +134,37 @@
 #define HCS12_IO_EADDR          0x0118
 #define HCS12_IO_EDATA          0x011a
 
-/* HCS12 FLASH window */
+/* HCS12 FLASH windows */
 
-#define HCS12_FLASH_BANK_WINDOW_ADDR 0x8000
-#define HCS12_FLASH_BANK_WINDOW_SIZE 0x4000
+#define HCS12_FLASH_PAGE_3E_ADDR     0x4000
+#define HCS12_FLASH_PAGE_BANKED_ADDR 0x8000
+#define HCS12_FLASH_PAGE_3F_ADDR     0xc000
+#define HCS12_FLASH_PAGE_SIZE        0x4000
+
+#define HCS12_FLASH_INVALID_ADDRESS (uint32_t)0xffffffff
 
 /* HCS12 FLASH/EEPROM addresses and bit masks */
 
 #define HCS12_FLASH_BACKDOOR   0xff00
 #define HCS12_FLASH_FPROT      0xff0d
-#define HCS12_FLASH_FPROT_FPOPEN 0x80
-#define HCS12_FLASH_FPROT_NV6    0x40
-#define HCS12_FLASH_FPROT_FPHDIS 0x20
-#define HCS12_FLASH_FPROT_FPHS   0x18
-#define HCS12_FLASH_FPROT_FPLDIS 0x04
-#define HCS12_FLASH_FPROT_FPLS   0x03
+#define HCS12_FLASH_FPROT_FPOPEN     0x80
+#define HCS12_FLASH_FPROT_NV6        0x40
+#define HCS12_FLASH_FPROT_FPHDIS     0x20
+#define HCS12_FLASH_FPROT_FPHS       0x18
+#define HCS12_FLASH_FPROT_FPLDIS     0x04
+#define HCS12_FLASH_FPROT_FPLS       0x03
 #define HCS12_FLASH_FSEC       0xff0f
-#define HCS12_FLASH_FSEC_KEYEN 0x80
-#define HCS12_FLASH_FSEC_NV6   0x40
-#define HCS12_FLASH_FSEC_NV5   0x40
-#define HCS12_FLASH_FSEC_NV4   0x40
-#define HCS12_FLASH_FSEC_NV3   0x40
-#define HCS12_FLASH_FSEC_NV2   0x40
-#define HCS12_FLASH_FSEC_SEC   0x03
+#define HCS12_FLASH_FSEC_KEYEN1      0x80
+#define HCS12_FLASH_FSEC_KEYEN0      0x40
+#define HCS12_FLASH_FSEC_NV6         0x40
+#define HCS12_FLASH_FSEC_NV5         0x20
+#define HCS12_FLASH_FSEC_NV4         0x10
+#define HCS12_FLASH_FSEC_NV3         0x08
+#define HCS12_FLASH_FSEC_NV2         0x04
+#define HCS12_FLASH_FSEC_SEC         0x03
 
-#define HC12_EEPROM_RESERVED_SIZE 16
-#define HC12_EEPROM_RESERVED_EPROT_OFFSET 13
+#define HCS12_EEPROM_RESERVED_SIZE 16
+#define HCS12_EEPROM_RESERVED_EPROT_OFFSET 13
 
 /* HCS12 FLASH/EEPROM clock range */
 
@@ -183,6 +188,7 @@ typedef struct
 	const char *flash_module_str;
 	int flash_module;
 	int flash_blocks;
+	int fsec_keyen_bits;
 	uint32_t flash_size;
 	uint32_t flash_sector;
 	uint32_t flash_nb_base;
@@ -202,6 +208,17 @@ typedef struct
 	uint32_t ram_space;
 	uint32_t eeprom_base;
 	uint32_t eeprom_space;
+
+	/* BDM unsecured bit - set when device is secured (FSEC.SEC == SECURED)
+	   but memory is fully erased, so effectively BDM works in unsecured mode,
+	   despite FLASH security flag */
+	int bdm_unsecured;
+
+	/* FLASH unsecured bit - set when FLASH is erased */
+	int fsec_unsecured;
+
+	/* MCU secured flag - set when FSEC.SEC == SECURED && BDM.UNSEC == FALSE,
+	   that is when FLASH is secured and FLASH is not erased */
 	int secured;
 
 	/* direct memory access */
@@ -211,37 +228,36 @@ typedef struct
 	int (*write_byte)(uint16_t addr, uint8_t v);
 	int (*write_word)(uint16_t addr, uint16_t v);
 }
-hc12mcu_target_t;
+hcs12mcu_target_t;
 
-extern hc12mcu_target_t hc12mcu_target;
+extern hcs12mcu_target_t hcs12mcu_target;
 
-extern int hc12mcu_target_parse(void);
-extern void hc12mcu_show_partid(uint16_t id);
-extern void hcs12mcu_partid(uint16_t id, int verbose);
-extern int hc12mcu_identify(int verbose);
+extern int hcs12mcu_target_parse(void);
+extern int hcs12mcu_partid(uint16_t id, int verbose);
+extern int hcs12mcu_identify(int verbose);
 
-#define hc12mcu_flash_addr_window(addr) \
-	(HCS12_FLASH_BANK_WINDOW_ADDR + ((addr) % HCS12_FLASH_BANK_WINDOW_SIZE))
+#define hcs12mcu_flash_addr_window(addr) \
+	(HCS12_FLASH_PAGE_BANKED_ADDR + ((addr) % HCS12_FLASH_PAGE_SIZE))
 
-extern uint32_t hc12mcu_flash_read_address_nb(uint32_t addr);
-extern uint32_t hc12mcu_flash_read_address_bl(uint32_t addr);
-extern uint32_t hc12mcu_flash_read_address_bp(uint32_t addr);
-extern uint32_t hc12mcu_flash_write_address_nb(uint32_t addr);
-extern uint32_t hc12mcu_flash_write_address_bl(uint32_t addr);
-extern uint32_t hc12mcu_flash_write_address_bp(uint32_t addr);
-extern uint8_t hc12mcu_linear_to_ppage(uint32_t linear);
-extern uint8_t hc12mcu_linear_to_block(uint32_t linear);
-extern uint8_t hc12mcu_block_to_ppage_base(uint32_t block);
+extern uint32_t hcs12mcu_flash_read_address_nb(uint32_t addr);
+extern uint32_t hcs12mcu_flash_read_address_bl(uint32_t addr);
+extern uint32_t hcs12mcu_flash_read_address_bp(uint32_t addr);
+extern uint32_t hcs12mcu_flash_write_address_nb(uint32_t addr);
+extern uint32_t hcs12mcu_flash_write_address_bl(uint32_t addr);
+extern uint32_t hcs12mcu_flash_write_address_bp(uint32_t addr);
+extern uint8_t hcs12mcu_linear_to_ppage(uint32_t linear);
+extern uint8_t hcs12mcu_linear_to_block(uint32_t linear);
+extern uint8_t hcs12mcu_block_to_ppage_base(uint32_t block);
 
-extern int hc12mcu_flash_read(const char *file, size_t chunk,
+extern int hcs12mcu_flash_read(const char *file, size_t chunk,
 	int (*f)(uint32_t addr, void *buf, size_t size));
-extern int hc12mcu_flash_write(const char *file, size_t chunk,
+extern int hcs12mcu_flash_write(const char *file, size_t chunk,
 	int (*f)(uint32_t addr, const void *buf, size_t size));
-extern int hc12mcu_eeprom_read(const char *file, size_t chunk,
+extern int hcs12mcu_eeprom_read(const char *file, size_t chunk,
 	int (*f)(uint16_t addr, void *buf, size_t size));
-extern int hc12mcu_eeprom_write(const char *file, size_t chunk,
+extern int hcs12mcu_eeprom_write(const char *file, size_t chunk,
 	int (*f)(uint16_t addr, const void *buf, size_t size));
-extern int hc12mcu_eeprom_protect(const char *opt,
+extern int hcs12mcu_eeprom_protect(const char *opt,
 	int (*eeww)(uint16_t addr, uint16_t v));
 
-#endif /* __HC12MCU_H */
+#endif /* __HCS12MCU_H */

@@ -1,3 +1,14 @@
+hcs12mem 1.4.1 [2007-xx-xx]
+
+- name change: hc12mem -> hcs12mem, due to confusing suggestion that the tool
+  is for HC12 chips
+- allow mixed addresses (banked and non-banked) in banked S-record files
+- ignore address from terminating record, if it's not used
+- report address from terminating record
+- improved detection of chip security
+- terminating record address in FLASH readouts is taken from RESET vector
+- detection of BDM connection problems and smarter error messages
+
 hc12mem 1.3.2 [2007-04-10]
 
 - fixed bug in setting extended speed (other than 1/2/4/8MHz) for new PODEX

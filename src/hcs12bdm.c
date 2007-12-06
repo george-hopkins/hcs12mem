@@ -1,6 +1,6 @@
 /*
-    hc12mem - HC12 memory reader & writer
-    hc12bdm.c: HC12 BDM target access routines
+    hcs12mem - HC12/S12 memory reader & writer
+    hcs12bdm.c: HCS12 BDM target access routines
     $Id$
 
     Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
@@ -20,9 +20,9 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "hc12mem.h"
-#include "hc12mcu.h"
-#include "hc12bdm.h"
+#include "hcs12mem.h"
+#include "hcs12mcu.h"
+#include "hcs12bdm.h"
 #include "bdm12pod.h"
 #include "tbdml.h"
 #include "srec.h"
@@ -31,13 +31,13 @@
 
 /* globals */
 
-static hc12bdm_handler_t *hc12bdm_handler;
-static uint32_t hc12bdm_ram_entry;
-static int hc12bdm_agent_loaded;
-static uint16_t hc12bdm_agent_param;
-static uint16_t hc12bdm_agent_buf_addr;
-static uint16_t hc12bdm_agent_buf_len;
-static uint8_t hc12bdm_ppage;
+static hcs12bdm_handler_t *hcs12bdm_handler;
+static uint32_t hcs12bdm_ram_entry;
+static int hcs12bdm_agent_loaded;
+static uint16_t hcs12bdm_agent_param;
+static uint16_t hcs12bdm_agent_buf_addr;
+static uint16_t hcs12bdm_agent_buf_len;
+static uint8_t hcs12bdm_ppage;
 
 static const struct
 {
@@ -66,7 +66,7 @@ hcs12_eeprom_prot_area_table[] =
  *    status code (errno-like)
  */
 
-static int hc12bdm_wait_active(unsigned long timeout)
+static int hcs12bdm_wait_active(unsigned long timeout)
 {
 	unsigned long start;
 	uint8_t b;
@@ -75,12 +75,12 @@ static int hc12bdm_wait_active(unsigned long timeout)
 	start = sys_get_ms();
 	while (sys_get_ms() - start < timeout)
 	{
-		ret = (*hc12bdm_handler->read_bd_byte)(
-			HC12BDM_REG_STATUS, &b);
+		ret = (*hcs12bdm_handler->read_bd_byte)(
+			HCS12BDM_REG_STATUS, &b);
 		if (ret != 0)
 			return ret;
 
-		if (b & HC12BDM_REG_STATUS_BDMACT)
+		if (b & HCS12BDM_REG_STATUS_BDMACT)
 			return 0;
 	}
 
@@ -98,7 +98,7 @@ static int hc12bdm_wait_active(unsigned long timeout)
  *    status code (errno-like)
  */
 
-static int hc12bdm_clkdiv_init(void)
+static int hcs12bdm_clkdiv_init(void)
 {
 	unsigned long clk;
 	uint8_t b;
@@ -138,10 +138,10 @@ static int hc12bdm_clkdiv_init(void)
 	if (options.debug)
 		printf("FCLK = %lu\n", (unsigned long)clk);
 
-	ret = (*hc12bdm_handler->write_byte)(HCS12_IO_FCLKDIV, b);
+	ret = (*hcs12bdm_handler->write_byte)(HCS12_IO_FCLKDIV, b);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_byte)(HCS12_IO_ECLKDIV, b);
+	ret = (*hcs12bdm_handler->write_byte)(HCS12_IO_ECLKDIV, b);
 	if (ret != 0)
 		return ret;
 
@@ -158,7 +158,7 @@ static int hc12bdm_clkdiv_init(void)
  *    status code (errno-like)
  */
 
-static int hc12bdm_init(int verbose)
+static int hcs12bdm_init(int verbose)
 {
 	int ret;
 	const char *ptr;
@@ -171,51 +171,60 @@ static int hc12bdm_init(int verbose)
 
 	/* reset target into single chip special mode */
 
-	ret = (*hc12bdm_handler->reset_special)();
+	ret = (*hcs12bdm_handler->reset_special)();
 	if (ret != 0)
 		return ret;
 
 	/* delay for BDM firmware init */
 
-	if (hc12mem_target_param("bdm_startup_delay", &v, 0) != 0)
+	if (hcs12mem_target_param("bdm_startup_delay", &v, 0) != 0)
 		return EINVAL;
 	sys_delay((unsigned long)v);
 
 	/* get BDM status */
 
-	ret = (*hc12bdm_handler->read_bd_byte)(HC12BDM_REG_STATUS, &bdm);
+	ret = (*hcs12bdm_handler->read_bd_byte)(HCS12BDM_REG_STATUS, &bdm);
 	if (ret != 0)
 		return ret;
 
+	hcs12mcu_target.bdm_unsecured = (bdm & HCS12BDM_REG_STATUS_UNSEC) ? TRUE : FALSE;
+
 	if (verbose)
 	{
-		printf("BDM status <%s,%s> clock <%s>",
-		       (const char *)((bdm & HC12BDM_REG_STATUS_ENBDM) ?
-				"enabled" : "disabled"),
-		       (const char *)((bdm & HC12BDM_REG_STATUS_BDMACT) ?
-				"active" : "inactive"),
-		       (const char *)((bdm & HC12BDM_REG_STATUS_CLKSW) ?
-				"pll" : "bus"));
-		if (hc12mcu_target.family >= HC12_FAMILY_HCS12)
+		const char *sec_str;
+
+		if (hcs12mcu_target.family >= HCS12_FAMILY_S12)
 		{
-			printf(" security <%s>",
-			       (const char *)((bdm & HC12BDM_REG_STATUS_UNSEC) ?
-					"unsecured" : "secured"));
+			sec_str = (hcs12mcu_target.bdm_unsecured ? ",unsecured" : ",secured");
 		}
-		printf("\n");
+		else
+		{
+			sec_str = "";
+		}
+
+		printf("BDM status <%s,%s%s> clock <%s>\n",
+			(const char *)((bdm & HCS12BDM_REG_STATUS_ENBDM) ?
+				"enabled" : "disabled"),
+			(const char *)((bdm & HCS12BDM_REG_STATUS_BDMACT) ?
+				"active" : "inactive"),
+			(const char *)sec_str,
+			(const char *)((bdm & HCS12BDM_REG_STATUS_CLKSW) ?
+				"pll" : "bus")
+			);
 	}
 
-	if (hc12mcu_target.family >= HC12_FAMILY_HCS12)
+	if (hcs12mcu_target.family >= HCS12_FAMILY_S12)
 	{
-		ret = (*hc12bdm_handler->read_word)(HCS12_IO_PARTID, &id);
+		ret = (*hcs12bdm_handler->read_word)(HCS12_IO_PARTID, &id);
 		if (ret != 0)
 			return ret;
 
-		hcs12mcu_partid(id, verbose);
+		if (!hcs12mcu_partid(id, verbose))
+			return EINVAL;
 	}
 
-	hc12mem_target_info(NULL, TRUE);
-	while ((ptr = hc12mem_target_info("bdm_init_byte", FALSE)) != NULL)
+	hcs12mem_target_info(NULL, TRUE);
+	while ((ptr = hcs12mem_target_info("bdm_init_byte", FALSE)) != NULL)
 	{
 		addr = strtoul(ptr, &end, 0);
 		if (*end != ' ')
@@ -228,28 +237,28 @@ static int hc12bdm_init(int verbose)
 		if (*end != '\0')
 			goto err_param;
 
-		ret = (*hc12bdm_handler->write_byte)(
+		ret = (*hcs12bdm_handler->write_byte)(
 			(uint16_t)addr, (uint8_t)val);
 		if (ret != 0)
 			return ret;
 
 	}
 
-	if (hc12mcu_target.family >= HC12_FAMILY_HCS12)
+	if (hcs12mcu_target.family >= HCS12_FAMILY_S12)
 	{
-		ret = hc12bdm_clkdiv_init();
+		ret = hcs12bdm_clkdiv_init();
 		if (ret != 0)
 			return ret;
 	}
 
-	hc12mcu_identify(verbose);
+	hcs12mcu_identify(verbose);
 	if (ret != 0)
 		return ret;
 
 	if (verbose)
 		printf("\n");
 
-	hc12bdm_agent_loaded = FALSE;
+	hcs12bdm_agent_loaded = FALSE;
 
 	return 0;
 }
@@ -264,12 +273,12 @@ static int hc12bdm_init(int verbose)
  *    status code (errno-like)
  */
 
-static int hc12bdm_reset(void)
+static int hcs12bdm_reset(void)
 {
 	if (options.verbose)
 		printf("reset: normal mode\n");
 
-	return (*hc12bdm_handler->reset_normal)();
+	return (*hcs12bdm_handler->reset_normal)();
 }
 
 
@@ -282,12 +291,12 @@ static int hc12bdm_reset(void)
  *    translated address
  */
 
-static uint32_t hc12bdm_ram_address(uint32_t addr)
+static uint32_t hcs12bdm_ram_address(uint32_t addr)
 {
-	if (addr < hc12mcu_target.ram_base ||
-	    addr >= hc12mcu_target.ram_base + hc12mcu_target.ram_size)
-		return hc12mcu_target.ram_size;
-	return addr - hc12mcu_target.ram_base;
+	if (addr < hcs12mcu_target.ram_base ||
+	    addr >= hcs12mcu_target.ram_base + hcs12mcu_target.ram_size)
+		return hcs12mcu_target.ram_size;
+	return addr - hcs12mcu_target.ram_base;
 }
 
 
@@ -301,7 +310,7 @@ static uint32_t hc12bdm_ram_address(uint32_t addr)
  *    status code (errno-like)
  */
 
-static int hc12bdm_ram_load(const char *file, int agent)
+static int hcs12bdm_ram_load(const char *file, int agent)
 {
 	int ret;
 	uint8_t *buf;
@@ -315,9 +324,9 @@ static int hc12bdm_ram_load(const char *file, int agent)
 	unsigned long t;
 
 	if (!agent)
-		hc12bdm_agent_loaded = FALSE;
+		hcs12bdm_agent_loaded = FALSE;
 
-	buf = malloc(hc12mcu_target.ram_size);
+	buf = malloc(hcs12mcu_target.ram_size);
 	if (buf == NULL)
 	{
 		error("not enough memory\n");
@@ -333,8 +342,17 @@ static int hc12bdm_ram_load(const char *file, int agent)
 		       (const char *)file);
 	}
 
-	ret = srec_read(file, info, sizeof(info), buf, hc12mcu_target.ram_size,
-		&entry, &addr_min, &addr_max, hc12bdm_ram_address);
+	ret = srec_read(
+		file,
+		info,
+		sizeof(info),
+		buf,
+		hcs12mcu_target.ram_size,
+		NULL,
+		&entry,
+		&addr_min,
+		&addr_max,
+		hcs12bdm_ram_address);
 	if (ret != 0)
 	{
 		free(buf);
@@ -343,48 +361,48 @@ static int hc12bdm_ram_load(const char *file, int agent)
 
 	if (entry == 0xffffffff && !options.start_valid)
 	{
-		error("start address not specified\n");
+		error("entry address not specified\n");
 		free(buf);
 		return EINVAL;
 	}
 
 	len = addr_max - addr_min + 1;
-	addr_min += hc12mcu_target.ram_base;
-	addr_max += hc12mcu_target.ram_base;
-	hc12bdm_ram_entry = entry + hc12mcu_target.ram_base;
+	addr_min += hcs12mcu_target.ram_base;
+	addr_max += hcs12mcu_target.ram_base;
+	hcs12bdm_ram_entry = entry + hcs12mcu_target.ram_base;
 
 	if (options.verbose)
 	{
 		if (agent)
 		{
-			printf("RAM load: address range <0x%04x-0x%04x> length <0x%04x> start <0x%04x>\n",
+			printf("RAM load: address range <0x%04X-0x%04X> length <0x%04X> entry <0x%04X>\n",
 			       (unsigned int)addr_min,
 			       (unsigned int)addr_max,
 			       (unsigned int)len,
-			       (unsigned int)hc12bdm_ram_entry);
+			       (unsigned int)hcs12bdm_ram_entry);
 		}
 		else
 		{
 			printf("RAM load: image info <%s>\n"
-			       "RAM load: address range <0x%04x-0x%04x> length <0x%04x> start <0x%04x>\n",
+			       "RAM load: address range <0x%04X-0x%04X> length <0x%04X> entry <0x%04X>\n",
 			       (const char *)info,
 			       (unsigned int)addr_min,
 			       (unsigned int)addr_max,
 			       (unsigned int)len,
-			       (unsigned int)hc12bdm_ram_entry);
+			       (unsigned int)hcs12bdm_ram_entry);
 		}
 	}
 
-	chunk = HC12BDM_RAM_LOAD_CHUNK;
+	chunk = HCS12BDM_RAM_LOAD_CHUNK;
 	t = progress_start("RAM load: data");
 	for (i = 0; i < len; i += chunk)
 	{
 		if (i + chunk > len)
 			chunk = len - i;
 
-		ret = (*hc12bdm_handler->write_mem)(
+		ret = (*hcs12bdm_handler->write_mem)(
 			(uint16_t)(addr_min + i),
-			buf + addr_min - hc12mcu_target.ram_base + i,
+			buf + addr_min - hcs12mcu_target.ram_base + i,
 			chunk);
 		if (ret != 0)
 		{
@@ -397,7 +415,7 @@ static int hc12bdm_ram_load(const char *file, int agent)
 	progress_stop(t, NULL, 0);
 
 	if (agent)
-		hc12bdm_agent_param = (uint16_t)addr_min;
+		hcs12bdm_agent_param = (uint16_t)addr_min;
 
 	free(buf);
 	return 0;
@@ -413,36 +431,36 @@ static int hc12bdm_ram_load(const char *file, int agent)
  *    status code (errno-like)
  */
 
-static int hc12bdm_ram_run(const char *file)
+static int hcs12bdm_ram_run(const char *file)
 {
 	int ret;
 
-	if (hc12mcu_target.secured && !options.force)
+	if (hcs12mcu_target.secured && !options.force)
 	{
 		printf("RAM run: MCU secured (-f option forces loading and running the program)\n");
 		return 0;
 	}
 
-	ret = hc12bdm_ram_load(file, FALSE);
+	ret = hcs12bdm_ram_load(file, FALSE);
 	if (ret != 0)
 		return ret;
 
 	if (options.start_valid)
-		hc12bdm_ram_entry = options.start;
+		hcs12bdm_ram_entry = options.start;
 
-	ret = (*hc12bdm_handler->write_reg)(
-		HC12BDM_REG_PC, (uint16_t)hc12bdm_ram_entry);
+	ret = (*hcs12bdm_handler->write_reg)(
+		HCS12BDM_REG_PC, (uint16_t)hcs12bdm_ram_entry);
 	if (ret != 0)
 		return ret;
 
-	ret = (*hc12bdm_handler->go)();
+	ret = (*hcs12bdm_handler->go)();
 	if (ret != 0)
 		return ret;
 
 	if (options.verbose)
 	{
-		printf("RAM run: image loaded and started from adrress <0x%04x>\n",
-		       (unsigned int)hc12bdm_ram_entry);
+		printf("RAM run: image loaded and started from adrress <0x%04X>\n",
+		       (unsigned int)hcs12bdm_ram_entry);
 	}
 
 	return 0;
@@ -458,16 +476,16 @@ static int hc12bdm_ram_run(const char *file)
  *    status code (errno-like)
  */
 
-static int hc12bdm_hc12_eeprom_command(uint8_t command)
+static int hcs12bdm_hcs12_eeprom_command(uint8_t command)
 {
 	int ret;
 	uint8_t b;
 	unsigned long ms;
 
-	ret = (*hc12bdm_handler->write_byte)(HCS12_IO_ECMD, command);
+	ret = (*hcs12bdm_handler->write_byte)(HCS12_IO_ECMD, command);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_byte)(
+	ret = (*hcs12bdm_handler->write_byte)(
 		HCS12_IO_ESTAT, HCS12_IO_ESTAT_CBEIF);
 	if (ret != 0)
 		return ret;
@@ -475,7 +493,7 @@ static int hc12bdm_hc12_eeprom_command(uint8_t command)
 	ms = sys_get_ms();
 	do
 	{
-		ret = (*hc12bdm_handler->read_byte)(HCS12_IO_ESTAT, &b);
+		ret = (*hcs12bdm_handler->read_byte)(HCS12_IO_ESTAT, &b);
 		if (ret != 0)
 			return ret;
 	}
@@ -511,24 +529,24 @@ static int hc12bdm_hc12_eeprom_command(uint8_t command)
  *    status code (errno-like)
  */
 
-static int hc12bdm_hcs12_eeprom_mass_erase(void)
+static int hcs12bdm_hcs12_eeprom_mass_erase(void)
 {
 	int ret;
 
-	ret = (*hc12bdm_handler->write_byte)(HCS12_IO_EPROT, 0xff);
+	ret = (*hcs12bdm_handler->write_byte)(HCS12_IO_EPROT, 0xff);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_byte)(
+	ret = (*hcs12bdm_handler->write_byte)(
 		HCS12_IO_ESTAT, HCS12_IO_ESTAT_PVIOL | HCS12_IO_ESTAT_ACCERR);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_word)(HCS12_IO_EDATA, 0);
+	ret = (*hcs12bdm_handler->write_word)(HCS12_IO_EDATA, 0);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_word)(HCS12_IO_EADDR, 0);
+	ret = (*hcs12bdm_handler->write_word)(HCS12_IO_EADDR, 0);
 	if (ret != 0)
 		return ret;
-	ret = hc12bdm_hc12_eeprom_command(HCS12_IO_ECMD_MASS_ERASE);
+	ret = hcs12bdm_hcs12_eeprom_command(HCS12_IO_ECMD_MASS_ERASE);
 	if (ret != 0)
 		return ret;
 
@@ -545,25 +563,25 @@ static int hc12bdm_hcs12_eeprom_mass_erase(void)
  *    status code (errno-like)
  */
 
-static int hc12bdm_hcs12_eeprom_erase_verify(int *state)
+static int hcs12bdm_hcs12_eeprom_erase_verify(int *state)
 {
 	int ret;
 	uint8_t b;
 
-	ret = (*hc12bdm_handler->write_byte)(
+	ret = (*hcs12bdm_handler->write_byte)(
 		HCS12_IO_ESTAT, HCS12_IO_ESTAT_PVIOL | HCS12_IO_ESTAT_ACCERR);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_word)(HCS12_IO_EDATA, 0);
+	ret = (*hcs12bdm_handler->write_word)(HCS12_IO_EDATA, 0);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_word)(HCS12_IO_EADDR, 0);
+	ret = (*hcs12bdm_handler->write_word)(HCS12_IO_EADDR, 0);
 	if (ret != 0)
 		return ret;
-	ret = hc12bdm_hc12_eeprom_command(HCS12_IO_ECMD_ERASE_VERIFY);
+	ret = hcs12bdm_hcs12_eeprom_command(HCS12_IO_ECMD_ERASE_VERIFY);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->read_byte)(HCS12_IO_ESTAT, &b);
+	ret = (*hcs12bdm_handler->read_byte)(HCS12_IO_ESTAT, &b);
 	if (ret != 0)
 		return ret;
 
@@ -582,15 +600,15 @@ static int hc12bdm_hcs12_eeprom_erase_verify(int *state)
  *    status code (errno-like)
  */
 
-static int hc12bdm_hcs12_eeprom_program(uint16_t addr, uint16_t value)
+static int hcs12bdm_hcs12_eeprom_program(uint16_t addr, uint16_t value)
 {
 	int ret;
 
-	ret = (*hc12bdm_handler->write_word)(addr, value);
+	ret = (*hcs12bdm_handler->write_word)(addr, value);
 	if (ret != 0)
 		return ret;
 
-	ret = hc12bdm_hc12_eeprom_command(HCS12_IO_ECMD_PROGRAM);
+	ret = hcs12bdm_hcs12_eeprom_command(HCS12_IO_ECMD_PROGRAM);
 	if (ret != 0)
 		return ret;
 
@@ -607,7 +625,7 @@ static int hc12bdm_hcs12_eeprom_program(uint16_t addr, uint16_t value)
  *    status code (errno-like)
  */
 
-static int hc12bdm_hc12_flash_ccif_wait(void)
+static int hcs12bdm_hcs12_flash_ccif_wait(void)
 {
 	int ret;
 	uint8_t b;
@@ -616,7 +634,7 @@ static int hc12bdm_hc12_flash_ccif_wait(void)
 	ms = sys_get_ms();
 	do
 	{
-		ret = (*hc12bdm_handler->read_byte)(HCS12_IO_FSTAT, &b);
+		ret = (*hcs12bdm_handler->read_byte)(HCS12_IO_FSTAT, &b);
 		if (ret != 0)
 			return ret;
 	}
@@ -652,62 +670,62 @@ static int hc12bdm_hc12_flash_ccif_wait(void)
  *    status code (errno-like)
  */
 
-static int hc12bdm_hcs12_flash_mass_erase(void)
+static int hcs12bdm_hcs12_flash_mass_erase(void)
 {
 	int i;
 	int ret;
 
-	if (hc12mcu_target.flash_blocks > 1)
+	if (hcs12mcu_target.flash_blocks > 1)
 	{
-		ret = (*hc12bdm_handler->write_byte)(HCS12_IO_FCNFG, 0x00);
+		ret = (*hcs12bdm_handler->write_byte)(HCS12_IO_FCNFG, 0x00);
 		if (ret != 0)
 			return ret;
-		ret = (*hc12bdm_handler->write_byte)(
+		ret = (*hcs12bdm_handler->write_byte)(
 			HCS12_IO_FTSTMOD, HCS12_IO_FTSTMOD_WRALL);
 		if (ret != 0)
 			return ret;
 	}
 
-	ret = (*hc12bdm_handler->write_byte)(HCS12_IO_FPROT, 0xff);
+	ret = (*hcs12bdm_handler->write_byte)(HCS12_IO_FPROT, 0xff);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_byte)(
+	ret = (*hcs12bdm_handler->write_byte)(
 		HCS12_IO_FSTAT, HCS12_IO_FSTAT_PVIOL | HCS12_IO_FSTAT_ACCERR);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_word)(HCS12_IO_FDATA, 0);
+	ret = (*hcs12bdm_handler->write_word)(HCS12_IO_FDATA, 0);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_word)(HCS12_IO_FADDR, 0);
+	ret = (*hcs12bdm_handler->write_word)(HCS12_IO_FADDR, 0);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_byte)(
+	ret = (*hcs12bdm_handler->write_byte)(
 		HCS12_IO_FCMD, HCS12_IO_FCMD_MASS_ERASE);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_byte)(
+	ret = (*hcs12bdm_handler->write_byte)(
 		HCS12_IO_FSTAT, HCS12_IO_FSTAT_CBEIF);
 	if (ret != 0)
 		return ret;
 
-	if (hc12mcu_target.flash_blocks > 1)
+	if (hcs12mcu_target.flash_blocks > 1)
 	{
-		ret = (*hc12bdm_handler->write_byte)(HCS12_IO_FTSTMOD, 0);
+		ret = (*hcs12bdm_handler->write_byte)(HCS12_IO_FTSTMOD, 0);
 		if (ret != 0)
 			return ret;
 	}
 
-	for (i = 0; i < hc12mcu_target.flash_blocks; ++ i)
+	for (i = 0; i < hcs12mcu_target.flash_blocks; ++ i)
 	{
-		if (hc12mcu_target.flash_blocks > 1)
+		if (hcs12mcu_target.flash_blocks > 1)
 		{
-			ret = (*hc12bdm_handler->write_byte)(
+			ret = (*hcs12bdm_handler->write_byte)(
 				HCS12_IO_FCNFG, (uint8_t)i);
 			if (ret != 0)
 				return ret;
 		}
 
-		ret = hc12bdm_hc12_flash_ccif_wait();
+		ret = hcs12bdm_hcs12_flash_ccif_wait();
 		if (ret != 0)
 			return ret;
 	}
@@ -725,66 +743,66 @@ static int hc12bdm_hcs12_flash_mass_erase(void)
  *    status code (errno-like)
  */
 
-static int hc12bdm_hcs12_flash_erase_verify(int *state)
+static int hcs12bdm_hcs12_flash_erase_verify(int *state)
 {
 	int i;
 	int ret;
 	uint8_t b;
 
-	if (hc12mcu_target.flash_blocks > 1)
+	if (hcs12mcu_target.flash_blocks > 1)
 	{
-		ret = (*hc12bdm_handler->write_byte)(HCS12_IO_FCNFG, 0x00);
+		ret = (*hcs12bdm_handler->write_byte)(HCS12_IO_FCNFG, 0x00);
 		if (ret != 0)
 			return ret;
-		ret = (*hc12bdm_handler->write_byte)(
+		ret = (*hcs12bdm_handler->write_byte)(
 			HCS12_IO_FTSTMOD, HCS12_IO_FTSTMOD_WRALL);
 		if (ret != 0)
 			return ret;
 	}
 
-	ret = (*hc12bdm_handler->write_byte)(
+	ret = (*hcs12bdm_handler->write_byte)(
 		HCS12_IO_FSTAT, HCS12_IO_FSTAT_PVIOL | HCS12_IO_FSTAT_ACCERR);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_word)(HCS12_IO_FDATA, 0);
+	ret = (*hcs12bdm_handler->write_word)(HCS12_IO_FDATA, 0);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_word)(HCS12_IO_FADDR, 0);
+	ret = (*hcs12bdm_handler->write_word)(HCS12_IO_FADDR, 0);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_byte)(
+	ret = (*hcs12bdm_handler->write_byte)(
 		HCS12_IO_FCMD, HCS12_IO_FCMD_ERASE_VERIFY);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_byte)(
+	ret = (*hcs12bdm_handler->write_byte)(
 		HCS12_IO_FSTAT, HCS12_IO_FSTAT_CBEIF);
 	if (ret != 0)
 		return ret;
 
-	if (hc12mcu_target.flash_blocks > 1)
+	if (hcs12mcu_target.flash_blocks > 1)
 	{
-		ret = (*hc12bdm_handler->write_byte)(HCS12_IO_FTSTMOD, 0);
+		ret = (*hcs12bdm_handler->write_byte)(HCS12_IO_FTSTMOD, 0);
 		if (ret != 0)
 			return ret;
 	}
 
 	*state = TRUE;
 
-	for (i = 0; i < hc12mcu_target.flash_blocks; ++ i)
+	for (i = 0; i < hcs12mcu_target.flash_blocks; ++ i)
 	{
-		if (hc12mcu_target.flash_blocks > 1)
+		if (hcs12mcu_target.flash_blocks > 1)
 		{
-			ret = (*hc12bdm_handler->write_byte)(
+			ret = (*hcs12bdm_handler->write_byte)(
 				HCS12_IO_FCNFG, (uint8_t)i);
 			if (ret != 0)
 				return ret;
 		}
 
-		ret = hc12bdm_hc12_flash_ccif_wait();
+		ret = hcs12bdm_hcs12_flash_ccif_wait();
 		if (ret != 0)
 			return ret;
 
-		ret = (*hc12bdm_handler->read_byte)(HCS12_IO_FSTAT, &b);
+		ret = (*hcs12bdm_handler->read_byte)(HCS12_IO_FSTAT, &b);
 		if (ret != 0)
 			return ret;
 
@@ -809,22 +827,22 @@ static int hc12bdm_hcs12_flash_erase_verify(int *state)
  *    status code (errno-like)
  */
 
-static int hc12bdm_hcs12_flash_program(uint16_t addr, uint16_t value)
+static int hcs12bdm_hcs12_flash_program(uint16_t addr, uint16_t value)
 {
 	int ret;
 
-	ret = (*hc12bdm_handler->write_word)(addr, value);
+	ret = (*hcs12bdm_handler->write_word)(addr, value);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_byte)(
+	ret = (*hcs12bdm_handler->write_byte)(
 		HCS12_IO_FCMD, HCS12_IO_FCMD_PROGRAM);
 	if (ret != 0)
 		return ret;
-	ret = (*hc12bdm_handler->write_byte)(
+	ret = (*hcs12bdm_handler->write_byte)(
 		HCS12_IO_FSTAT, HCS12_IO_FSTAT_CBEIF);
 	if (ret != 0)
 		return ret;
-	ret = hc12bdm_hc12_flash_ccif_wait();
+	ret = hcs12bdm_hcs12_flash_ccif_wait();
 	if (ret != 0)
 		return ret;
 
@@ -841,25 +859,25 @@ static int hc12bdm_hcs12_flash_program(uint16_t addr, uint16_t value)
  *    status code (errno-like)
  */
 
-static int hc12bdm_unsecure(void)
+static int hcs12bdm_unsecure(void)
 {
 	int ret;
 
-	if (hc12mcu_target.family < HC12_FAMILY_HCS12)
+	if (hcs12mcu_target.family < HCS12_FAMILY_S12)
 	{
 		error("unsecuring procedure not available for this MCU family\n");
 		return EINVAL;
 	}
 
-	if (!hc12mcu_target.secured && !options.force)
+	if (hcs12mcu_target.fsec_unsecured && !options.force)
 	{
 		printf("unsecure: MCU not secured (-f option forces unsecuring procedure)\n");
 		return 0;
 	}
 
-	if (hc12mcu_target.eeprom_size != 0)
+	if (hcs12mcu_target.eeprom_size != 0)
 	{
-		ret = hc12bdm_hcs12_eeprom_mass_erase();
+		ret = hcs12bdm_hcs12_eeprom_mass_erase();
 		if (ret != 0)
 			return ret;
 
@@ -867,22 +885,22 @@ static int hc12bdm_unsecure(void)
 			printf("unsecure: EEPROM erased\n");
 	}
 
-	ret = hc12bdm_hcs12_flash_mass_erase();
+	ret = hcs12bdm_hcs12_flash_mass_erase();
 	if (ret != 0)
 		return ret;
 
 	if (options.verbose)
 		printf("unsecure: FLASH erased\n");
 
-	ret = hc12bdm_init(FALSE);
+	ret = hcs12bdm_init(FALSE);
 	if (ret != 0)
 		return ret;
 
-	ret = hc12bdm_hcs12_flash_program(0xff0e, 0xfffe);
+	ret = hcs12bdm_hcs12_flash_program(0xff0e, 0xff7e);
 	if (ret != 0)
 		return ret;
 
-	ret = hc12bdm_init(FALSE);
+	ret = hcs12bdm_init(FALSE);
 	if (ret != 0)
 		return ret;
 
@@ -902,27 +920,27 @@ static int hc12bdm_unsecure(void)
  *    status code (errno-like)
  */
 
-static int hc12bdm_secure(void)
+static int hcs12bdm_secure(void)
 {
 	int ret;
 
-	if (hc12mcu_target.family < HC12_FAMILY_HCS12)
+	if (hcs12mcu_target.family < HCS12_FAMILY_S12)
 	{
 		error("securing procedure not available for this family\n");
 		return EINVAL;
 	}
 
-	if (hc12mcu_target.secured && !options.force)
+	if (hcs12mcu_target.secured && !options.force)
 	{
 		printf("secure: MCU already secured (-f option forces securing procedure)\n");
 		return 0;
 	}
 
-	ret = hc12bdm_hcs12_flash_program(0xff0e, 0xfffd);
+	ret = hcs12bdm_hcs12_flash_program(0xff0e, 0xfffd);
 	if (ret != 0)
 		return ret;
 
-	ret = hc12bdm_init(FALSE);
+	ret = hcs12bdm_init(FALSE);
 	if (ret != 0)
 		return ret;
 
@@ -943,47 +961,47 @@ static int hc12bdm_secure(void)
  *    status code (errno-like)
  */
 
-static int hc12bdm_agent_cmd(int cmd, int *status)
+static int hcs12bdm_agent_cmd(int cmd, int *status)
 {
 	int ret;
 	uint8_t b;
 
-	ret = (*hc12bdm_handler->write_byte)(
-		(uint16_t)(hc12bdm_agent_param + HC12_AGENT_CMD),
+	ret = (*hcs12bdm_handler->write_byte)(
+		(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_CMD),
 		(uint8_t)cmd);
 	if (ret != 0)
 		return ret;
 
-	ret = (*hc12bdm_handler->write_byte)(
-		(uint16_t)(hc12bdm_agent_param + HC12_AGENT_STATUS),
-		HC12_AGENT_ERROR_CMD);
+	ret = (*hcs12bdm_handler->write_byte)(
+		(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_STATUS),
+		HCS12_AGENT_ERROR_CMD);
 	if (ret != 0)
 		return ret;
 
-	ret = (*hc12bdm_handler->write_reg)(
-		HC12BDM_REG_PC, (uint16_t)hc12bdm_ram_entry);
+	ret = (*hcs12bdm_handler->write_reg)(
+		HCS12BDM_REG_PC, (uint16_t)hcs12bdm_ram_entry);
 	if (ret != 0)
 		return ret;
 
-	ret = (*hc12bdm_handler->go)();
+	ret = (*hcs12bdm_handler->go)();
 	if (ret != 0)
 		return ret;
 
-	ret = hc12bdm_wait_active(HC12BDM_RUN_TIMEOUT);
+	ret = hcs12bdm_wait_active(HCS12BDM_RUN_TIMEOUT);
 	if (ret != 0)
 		return ret;
 
-	ret = (*hc12bdm_handler->read_byte)(
-		(uint16_t)(hc12bdm_agent_param + HC12_AGENT_STATUS), &b);
+	ret = (*hcs12bdm_handler->read_byte)(
+		(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_STATUS), &b);
 	if (ret != 0)
 		return ret;
 
-	if (b == HC12_AGENT_ERROR_XTAL)
+	if (b == HCS12_AGENT_ERROR_XTAL)
 	{
 		error("unable to proceed - oscillator frequency invalid\n");
 		return EINVAL;
 	}
-	if (b == HC12_AGENT_ERROR_CMD)
+	if (b == HCS12_AGENT_ERROR_CMD)
 	{
 		error("unable to proceed - command not supported\n");
 		return ENOTSUP;
@@ -991,7 +1009,7 @@ static int hc12bdm_agent_cmd(int cmd, int *status)
 
 	if (status != NULL)
 		*status = (int)b;
-	else if (b != HC12_AGENT_ERROR_NONE)
+	else if (b != HCS12_AGENT_ERROR_NONE)
 	{
 		error("unable to proceed - unknown response\n");
 		return EINVAL;
@@ -1010,16 +1028,16 @@ static int hc12bdm_agent_cmd(int cmd, int *status)
  *    status code (errno-like)
  */
 
-static int hc12bdm_agent_load(void)
+static int hcs12bdm_agent_load(void)
 {
 	const char *ptr;
 	char file[SYS_MAX_PATH + 1];
 	int ret;
 
-	if (hc12bdm_agent_loaded)
+	if (hcs12bdm_agent_loaded)
 		return 0;
 
-	ptr = hc12mem_target_info("bdm_agent", TRUE);
+	ptr = hcs12mem_target_info("bdm_agent", TRUE);
 	if (ptr == NULL)
 	{
 		error("target RAM agent not available, cannot proceed\n");
@@ -1030,47 +1048,47 @@ static int hc12bdm_agent_load(void)
 	    strchr(ptr, SYS_PATH_SEPARATOR) == NULL)
 	{
 		snprintf(file, sizeof(file), "%s%c%s",
-			 (const char *)hc12mem_data_dir,
+			 (const char *)hcs12mem_data_dir,
 			 (char)SYS_PATH_SEPARATOR,
 			 (const char *)ptr);
 	}
 	else
 		strlcpy(file, ptr, sizeof(file));
 
-	ret = hc12bdm_ram_load(file, TRUE);
+	ret = hcs12bdm_ram_load(file, TRUE);
 	if (ret != 0)
 		return ret;
 
-	ret = (*hc12bdm_handler->write_word)(
-		(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM),
+	ret = (*hcs12bdm_handler->write_word)(
+		(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM),
 		(uint16_t)(options.osc / 1000));
 	if (ret != 0)
 		return ret;
 
-	ret = hc12bdm_agent_cmd(HC12_AGENT_CMD_INIT, NULL);
+	ret = hcs12bdm_agent_cmd(HCS12_AGENT_CMD_INIT, NULL);
 	if (ret != 0)
 		return ret;
 
-	ret = (*hc12bdm_handler->read_word)(
-		(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 0),
-		&hc12bdm_agent_buf_addr);
+	ret = (*hcs12bdm_handler->read_word)(
+		(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 0),
+		&hcs12bdm_agent_buf_addr);
 	if (ret != 0)
 		return ret;
 
-	ret = (*hc12bdm_handler->read_word)(
-		(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 2),
-		&hc12bdm_agent_buf_len);
+	ret = (*hcs12bdm_handler->read_word)(
+		(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 2),
+		&hcs12bdm_agent_buf_len);
 	if (ret != 0)
 		return ret;
 
 	if (options.debug)
 	{
-		printf("RAM agent data buffer address <0x%04x> length <0x%04x>\n",
-		       (unsigned int)hc12bdm_agent_buf_addr,
-		       (unsigned int)hc12bdm_agent_buf_len);
+		printf("RAM agent data buffer address <0x%04X> length <0x%04X>\n",
+		       (unsigned int)hcs12bdm_agent_buf_addr,
+		       (unsigned int)hcs12bdm_agent_buf_len);
 	}
 
-	hc12bdm_agent_loaded = TRUE;
+	hcs12bdm_agent_loaded = TRUE;
 
 	return 0;
 }
@@ -1087,11 +1105,11 @@ static int hc12bdm_agent_load(void)
  *    status code (errno-like)
  */
 
-static int hc12bdm_get_mode(const char *key, int *agent)
+static int hcs12bdm_get_mode(const char *key, int *agent)
 {
 	const char *ptr;
 
-	ptr = hc12mem_target_info(key, TRUE);
+	ptr = hcs12mem_target_info(key, TRUE);
 	if (ptr == NULL || strcmp(ptr, "bdm") == 0)
 		*agent = FALSE;
 	else if (strcmp(ptr, "agent") == 0)
@@ -1117,23 +1135,23 @@ static int hc12bdm_get_mode(const char *key, int *agent)
  *    status code (errno-like)
  */
 
-static int hc12bdm_eeprom_erase(void)
+static int hcs12bdm_eeprom_erase(void)
 {
 	int ret;
 	int agent;
 	int state;
 
-	ret = hc12bdm_get_mode("bdm_eeprom_erase", &agent);
+	ret = hcs12bdm_get_mode("bdm_eeprom_erase", &agent);
 	if (ret != 0)
 		return ret;
 
-	if (hc12mcu_target.eeprom_size == 0)
+	if (hcs12mcu_target.eeprom_size == 0)
 	{
 		error("EEPROM erase not possible - no EEPROM memory\n");
 		return EINVAL;
 	}
 
-	if (hc12mcu_target.secured && !options.force)
+	if (hcs12mcu_target.secured && !options.force)
 	{
 		error("EEPROM erase not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -1141,16 +1159,16 @@ static int hc12bdm_eeprom_erase(void)
 
 	if (agent)
 	{
-		ret = hc12bdm_agent_load();
+		ret = hcs12bdm_agent_load();
 		if (ret != 0)
 			return ret;
-		ret = hc12bdm_agent_cmd(HC12_AGENT_CMD_EEPROM_MASS_ERASE, NULL);
+		ret = hcs12bdm_agent_cmd(HCS12_AGENT_CMD_EEPROM_MASS_ERASE, NULL);
 		if (ret != 0)
 			return ret;
 	}
 	else
 	{
-		ret = hc12bdm_hcs12_eeprom_mass_erase();
+		ret = hcs12bdm_hcs12_eeprom_mass_erase();
 		if (ret != 0)
 			return ret;
 	}
@@ -1162,13 +1180,13 @@ static int hc12bdm_eeprom_erase(void)
 	{
 		if (agent)
 		{
-			ret = hc12bdm_agent_cmd(HC12_AGENT_CMD_EEPROM_ERASE_VERIFY, &state);
+			ret = hcs12bdm_agent_cmd(HCS12_AGENT_CMD_EEPROM_ERASE_VERIFY, &state);
 			if (ret != 0)
 				return ret;
 
-			if (state == HC12_AGENT_ERROR_NONE)
+			if (state == HCS12_AGENT_ERROR_NONE)
 				state = TRUE;
-			else if (state == HC12_AGENT_ERROR_VERIFY)
+			else if (state == HCS12_AGENT_ERROR_VERIFY)
 				state = FALSE;
 			else
 			{
@@ -1178,7 +1196,7 @@ static int hc12bdm_eeprom_erase(void)
 		}
 		else
 		{
-			ret = hc12bdm_hcs12_eeprom_erase_verify(&state);
+			ret = hcs12bdm_hcs12_eeprom_erase_verify(&state);
 			if (ret != 0)
 				return ret;
 		}
@@ -1206,22 +1224,22 @@ static int hc12bdm_eeprom_erase(void)
  *    status code (errno-like)
  */
 
-static int hc12bdm_eeprom_read(const char *file)
+static int hcs12bdm_eeprom_read(const char *file)
 {
 	int ret;
 	int agent;
 
-	ret = hc12bdm_get_mode("bdm_eeprom_read", &agent);
+	ret = hcs12bdm_get_mode("bdm_eeprom_read", &agent);
 	if (ret != 0)
 		return ret;
 
-	if (hc12mcu_target.eeprom_size == 0)
+	if (hcs12mcu_target.eeprom_size == 0)
 	{
 		error("EEPROM read not possible - no EEPROM memory\n");
 		return EINVAL;
 	}
 
-	if (hc12mcu_target.secured && !options.force)
+	if (hcs12mcu_target.secured && !options.force)
 	{
 		error("EEPROM read not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -1229,7 +1247,7 @@ static int hc12bdm_eeprom_read(const char *file)
 
 	if (agent)
 	{
-		ret = hc12bdm_agent_load();
+		ret = hcs12bdm_agent_load();
 		if (ret != 0)
 			return ret;
 
@@ -1237,7 +1255,7 @@ static int hc12bdm_eeprom_read(const char *file)
 		currently it falls through to reading it directly */
 	}
 
-	return hc12mcu_eeprom_read(file, HC12BDM_EEPROM_READ_CHUNK, hc12bdm_handler->read_mem);
+	return hcs12mcu_eeprom_read(file, HCS12BDM_EEPROM_READ_CHUNK, hcs12bdm_handler->read_mem);
 }
 
 
@@ -1250,12 +1268,12 @@ static int hc12bdm_eeprom_read(const char *file)
  *    translated address
  */
 
-static uint32_t hc12bdm_eeprom_address(uint32_t addr)
+static uint32_t hcs12bdm_eeprom_address(uint32_t addr)
 {
-	if (addr < hc12mcu_target.eeprom_base ||
-	    addr >= hc12mcu_target.eeprom_base + hc12mcu_target.eeprom_size)
-		return hc12mcu_target.eeprom_size;
-	return addr - hc12mcu_target.eeprom_base;
+	if (addr < hcs12mcu_target.eeprom_base ||
+	    addr >= hcs12mcu_target.eeprom_base + hcs12mcu_target.eeprom_size)
+		return hcs12mcu_target.eeprom_size;
+	return addr - hcs12mcu_target.eeprom_base;
 }
 
 
@@ -1268,7 +1286,7 @@ static uint32_t hc12bdm_eeprom_address(uint32_t addr)
  *    status code (errno-like)
  */
 
-static int hc12bdm_eeprom_write(const char *file)
+static int hcs12bdm_eeprom_write(const char *file)
 {
 	int ret;
 	uint8_t *buf;
@@ -1282,17 +1300,17 @@ static int hc12bdm_eeprom_write(const char *file)
 	int agent;
 	uint16_t w;
 
-	ret = hc12bdm_get_mode("bdm_eeprom_write", &agent);
+	ret = hcs12bdm_get_mode("bdm_eeprom_write", &agent);
 	if (ret != 0)
 		return ret;
 
-	if (hc12mcu_target.eeprom_size == 0)
+	if (hcs12mcu_target.eeprom_size == 0)
 	{
 		error("EEPROM write not possible - no EEPROM memory\n");
 		return EINVAL;
 	}
 
-	if (hc12mcu_target.secured && !options.force)
+	if (hcs12mcu_target.secured && !options.force)
 	{
 		error("EEPROM write not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -1300,18 +1318,18 @@ static int hc12bdm_eeprom_write(const char *file)
 
 	if (agent)
 	{
-		ret = hc12bdm_agent_load();
+		ret = hcs12bdm_agent_load();
 		if (ret != 0)
 			return ret;
 	}
 
-	buf = malloc(hc12mcu_target.eeprom_size);
+	buf = malloc(hcs12mcu_target.eeprom_size);
 	if (buf == NULL)
 	{
 		error("not enough memory\n");
 		return ENOMEM;
 	}
-	memset(buf, 0xff, (size_t)hc12mcu_target.eeprom_size);
+	memset(buf, 0xff, (size_t)hcs12mcu_target.eeprom_size);
 
 	if (options.verbose)
 	{
@@ -1321,27 +1339,35 @@ static int hc12bdm_eeprom_write(const char *file)
 
 	/* read EEPROM data from S-record file */
 
-	ret = srec_read(file, info, sizeof(info),
-		buf, hc12mcu_target.eeprom_size,
-		NULL, &addr_min, &addr_max, hc12bdm_eeprom_address);
+	ret = srec_read(
+		file,
+		info,
+		sizeof(info),
+		buf,
+		hcs12mcu_target.eeprom_size,
+		NULL,
+		NULL,
+		&addr_min,
+		&addr_max,
+		hcs12bdm_eeprom_address);
 	if (ret != 0)
 		goto error;
 
-	addr_min += hc12mcu_target.eeprom_base;
-	addr_max += hc12mcu_target.eeprom_base;
+	addr_min += hcs12mcu_target.eeprom_base;
+	addr_max += hcs12mcu_target.eeprom_base;
 	len = addr_max - addr_min + 1;
 
 	if (options.verbose)
 	{
 		printf("EEPROM write: data info <%s>\n"
-		       "EEPROM write: address range <0x%04x-0x%04x> length <0x%04x>\n",
+		       "EEPROM write: address range <0x%04X-0x%04X> length <0x%04X>\n",
 		       (const char *)info,
 		       (unsigned int)addr_min,
 		       (unsigned int)addr_max,
 		       (unsigned int)len);
 	}
 
-	if (addr_max >= hc12mcu_target.eeprom_base + hc12mcu_target.eeprom_size - HC12_EEPROM_RESERVED_SIZE)
+	if (addr_max >= hcs12mcu_target.eeprom_base + hcs12mcu_target.eeprom_size - HCS12_EEPROM_RESERVED_SIZE)
 	{
 		if (!options.force)
 		{
@@ -1369,39 +1395,39 @@ static int hc12bdm_eeprom_write(const char *file)
 	t = progress_start("EEPROM write: data");
 	for (i = 0; i < len; i += 2)
 	{
-		w = uint16_be2host_from_buf(&buf[addr_min - hc12mcu_target.eeprom_base + i]);
+		w = uint16_be2host_from_buf(&buf[addr_min - hcs12mcu_target.eeprom_base + i]);
 
 		if (agent)
 		{
 			/* write word for programming */
 
-			ret = (*hc12bdm_handler->write_word)(
-				(uint16_t)(hc12bdm_agent_buf_addr + cnt), w);
+			ret = (*hcs12bdm_handler->write_word)(
+				(uint16_t)(hcs12bdm_agent_buf_addr + cnt), w);
 			if (ret != 0)
 				goto error_nl;
 
 			cnt += 2;
-			if (cnt == hc12bdm_agent_buf_len || i + 2 == len)
+			if (cnt == hcs12bdm_agent_buf_len || i + 2 == len)
 			{
 				/* param + 0: EEPROM address (word) */
 
-				ret = (*hc12bdm_handler->write_word)(
-					(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 0),
+				ret = (*hcs12bdm_handler->write_word)(
+					(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 0),
 					(uint16_t)(addr_min + i + 2 - cnt));
 				if (ret != 0)
 					goto error_nl;
 
 				/* param + 2: data length (word) */
 
-				ret = (*hc12bdm_handler->write_word)(
-					(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 2),
+				ret = (*hcs12bdm_handler->write_word)(
+					(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 2),
 					(uint16_t)cnt);
 				if (ret != 0)
 					goto error_nl;
 
 				/* execute command via agent */
 
-				ret = hc12bdm_agent_cmd(HC12_AGENT_CMD_EEPROM_WRITE, NULL);
+				ret = hcs12bdm_agent_cmd(HCS12_AGENT_CMD_EEPROM_WRITE, NULL);
 				if (ret != 0)
 					goto error_nl;
 
@@ -1410,7 +1436,7 @@ static int hc12bdm_eeprom_write(const char *file)
 		}
 		else
 		{
-			ret = hc12bdm_hcs12_eeprom_program((uint16_t)(addr_min + i), w);
+			ret = hcs12bdm_hcs12_eeprom_program((uint16_t)(addr_min + i), w);
 			if (ret != 0)
 			{
 			  error_nl:
@@ -1421,30 +1447,30 @@ static int hc12bdm_eeprom_write(const char *file)
 
 		progress_report(i + 2, len);
 	}
-	progress_stop(t, "EEPROM write: data", hc12mcu_target.eeprom_size);
+	progress_stop(t, "EEPROM write: data", hcs12mcu_target.eeprom_size);
 
 	if (options.verify)
 	{
 		t = progress_start("EEPROM write: verify");
 		for (i = 0; i < len; i += 2)
 		{
-			ret = (*hc12bdm_handler->read_word)(
+			ret = (*hcs12bdm_handler->read_word)(
 				(uint16_t)(addr_min + i), &w);
 			if (ret != 0)
 				goto error;
 
-			if (w != uint16_be2host_from_buf(&buf[addr_min - hc12mcu_target.eeprom_base + i]))
+			if (w != uint16_be2host_from_buf(&buf[addr_min - hcs12mcu_target.eeprom_base + i]))
 			{
-				error("EEPROM data verify error at address <0x%04x> value <0x%04x> expected <0x%04x>\n",
+				error("EEPROM data verify error at address <0x%04X> value <0x%04X> expected <0x%04X>\n",
 				      (unsigned int)(addr_min + i),
 				      (unsigned int)w,
-				      (unsigned int)uint16_be2host_from_buf(&buf[addr_min - hc12mcu_target.eeprom_base + i]));
+				      (unsigned int)uint16_be2host_from_buf(&buf[addr_min - hcs12mcu_target.eeprom_base + i]));
 				goto error;
 			}
 
 			progress_report(i + 2, len);
 		}
-		progress_stop(t, "EEPROM write: verify", hc12mcu_target.eeprom_size);
+		progress_stop(t, "EEPROM write: verify", hcs12mcu_target.eeprom_size);
 		if (options.verbose)
 			printf("EEPROM write: verify ok\n");
 	}
@@ -1467,7 +1493,7 @@ error:
  *    status code (errno-like)
  */
 
-static int hc12bdm_eeprom_protect(const char *opt)
+static int hcs12bdm_eeprom_protect(const char *opt)
 {
 	int ret;
 	int i;
@@ -1475,22 +1501,22 @@ static int hc12bdm_eeprom_protect(const char *opt)
 	int prot;
 	uint8_t b;
 	uint8_t eprot;
-	uint8_t buf[HC12_EEPROM_RESERVED_SIZE];
+	uint8_t buf[HCS12_EEPROM_RESERVED_SIZE];
 	uint16_t addr;
 	uint16_t w;
 	int agent;
 
-	ret = hc12bdm_get_mode("bdm_eeprom_protect", &agent);
+	ret = hcs12bdm_get_mode("bdm_eeprom_protect", &agent);
 	if (ret != 0)
 		return ret;
 
-	if (hc12mcu_target.eeprom_size == 0)
+	if (hcs12mcu_target.eeprom_size == 0)
 	{
 		error("EEPROM protect not possible - no EEPROM memory\n");
 		return EINVAL;
 	}
 
-	if (hc12mcu_target.secured && !options.force)
+	if (hcs12mcu_target.secured && !options.force)
 	{
 		error("EEPROM protect not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -1521,7 +1547,7 @@ static int hc12bdm_eeprom_protect(const char *opt)
 		prot = hcs12_eeprom_prot_area_table[i].size;
 	}
 
-	ret = (*hc12bdm_handler->read_byte)(HCS12_IO_EPROT, &eprot);
+	ret = (*hcs12bdm_handler->read_byte)(HCS12_IO_EPROT, &eprot);
 	if (ret != 0)
 		return ret;
 
@@ -1533,45 +1559,45 @@ static int hc12bdm_eeprom_protect(const char *opt)
 
 	if (agent)
 	{
-		ret = hc12bdm_agent_load();
+		ret = hcs12bdm_agent_load();
 		if (ret != 0)
 			return ret;
 	}
 
-	addr = (uint16_t)(hc12mcu_target.eeprom_base + hc12mcu_target.eeprom_size - HC12_EEPROM_RESERVED_SIZE);
+	addr = (uint16_t)(hcs12mcu_target.eeprom_base + hcs12mcu_target.eeprom_size - HCS12_EEPROM_RESERVED_SIZE);
 
-	ret = (*hc12bdm_handler->read_mem)(
-		addr, buf, HC12_EEPROM_RESERVED_SIZE);
+	ret = (*hcs12bdm_handler->read_mem)(
+		addr, buf, HCS12_EEPROM_RESERVED_SIZE);
 	if (ret != 0)
 		return ret;
 
-	buf[HC12_EEPROM_RESERVED_EPROT_OFFSET] = b;
+	buf[HCS12_EEPROM_RESERVED_EPROT_OFFSET] = b;
 
 	if (agent)
 	{
-		ret = (*hc12bdm_handler->write_mem)(
-			hc12bdm_agent_buf_addr, buf, HC12_EEPROM_RESERVED_SIZE);
+		ret = (*hcs12bdm_handler->write_mem)(
+			hcs12bdm_agent_buf_addr, buf, HCS12_EEPROM_RESERVED_SIZE);
 		if (ret != 0)
 			return ret;
-		ret = (*hc12bdm_handler->write_word)(
-			(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 0),
+		ret = (*hcs12bdm_handler->write_word)(
+			(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 0),
 			addr);
 		if (ret != 0)
 			return ret;
-		ret = (*hc12bdm_handler->write_word)(
-			(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 2),
-			HC12_EEPROM_RESERVED_SIZE);
+		ret = (*hcs12bdm_handler->write_word)(
+			(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 2),
+			HCS12_EEPROM_RESERVED_SIZE);
 		if (ret != 0)
 			return ret;
-		ret = hc12bdm_agent_cmd(HC12_AGENT_CMD_EEPROM_WRITE, NULL);
+		ret = hcs12bdm_agent_cmd(HCS12_AGENT_CMD_EEPROM_WRITE, NULL);
 		if (ret != 0)
 			return ret;
 	}
 	else
 	{
-		w = uint16_be2host_from_buf(&buf[HC12_EEPROM_RESERVED_EPROT_OFFSET & 0xfffe]);
-		ret = hc12bdm_hcs12_eeprom_program(
-			(uint16_t)(addr + (HC12_EEPROM_RESERVED_EPROT_OFFSET & 0xfffe)), w);
+		w = uint16_be2host_from_buf(&buf[HCS12_EEPROM_RESERVED_EPROT_OFFSET & 0xfffe]);
+		ret = hcs12bdm_hcs12_eeprom_program(
+			(uint16_t)(addr + (HCS12_EEPROM_RESERVED_EPROT_OFFSET & 0xfffe)), w);
  		if (ret != 0)
 			return ret;
 	}
@@ -1584,21 +1610,21 @@ static int hc12bdm_eeprom_protect(const char *opt)
 			printf("EEPROM protect: whole area\n");
 		else
 		{
-			printf("EEPROM protect: address range <0x%04x-0x%04x> block size <%uB>\n",
-			       (unsigned int)(hc12mcu_target.eeprom_base + hc12mcu_target.eeprom_size - prot),
-			       (unsigned int)(hc12mcu_target.eeprom_base + hc12mcu_target.eeprom_size - 1),
+			printf("EEPROM protect: address range <0x%04X-0x%04X> block size <%uB>\n",
+			       (unsigned int)(hcs12mcu_target.eeprom_base + hcs12mcu_target.eeprom_size - prot),
+			       (unsigned int)(hcs12mcu_target.eeprom_base + hcs12mcu_target.eeprom_size - 1),
 			       (unsigned int)prot);
 		}
 	}
 
 	if (options.verify)
 	{
-		ret = (*hc12bdm_handler->read_byte)(
-			(uint16_t)(addr + HC12_EEPROM_RESERVED_EPROT_OFFSET), &b);
+		ret = (*hcs12bdm_handler->read_byte)(
+			(uint16_t)(addr + HCS12_EEPROM_RESERVED_EPROT_OFFSET), &b);
 		if (ret != 0)
 			return ret;
 
-		if (b == buf[HC12_EEPROM_RESERVED_EPROT_OFFSET])
+		if (b == buf[HCS12_EEPROM_RESERVED_EPROT_OFFSET])
 		{
 			if (options.verbose)
 				printf("EEPROM protect: verify ok\n");
@@ -1622,24 +1648,24 @@ static int hc12bdm_eeprom_protect(const char *opt)
  *    status code (errno-like)
  */
 
-static int hc12bdm_flash_erase(int unsecure)
+static int hcs12bdm_flash_erase(int unsecure)
 {
 	int ret;
 	int agent;
 	int state;
 	int i;
 
-	ret = hc12bdm_get_mode("bdm_flash_erase", &agent);
+	ret = hcs12bdm_get_mode("bdm_flash_erase", &agent);
 	if (ret != 0)
 		return ret;
 
-	if (hc12mcu_target.flash_size == 0)
+	if (hcs12mcu_target.flash_size == 0)
 	{
 		error("FLASH erase not possible - no FLASH memory\n");
 		return EINVAL;
 	}
 
-	if (hc12mcu_target.secured && !options.force)
+	if (hcs12mcu_target.secured && !options.force)
 	{
 		error("FLASH erase not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -1647,28 +1673,28 @@ static int hc12bdm_flash_erase(int unsecure)
 
 	if (agent)
 	{
-		ret = hc12bdm_agent_load();
+		ret = hcs12bdm_agent_load();
 		if (ret != 0)
 			return ret;
 
-		for (i = 0; i < hc12mcu_target.flash_blocks; ++ i)
+		for (i = 0; i < hcs12mcu_target.flash_blocks; ++ i)
 		{
 			/* param + 0: FLASH block number (byte)
 			   param + 1: PPAGE (byte) */
 
-			ret = (*hc12bdm_handler->write_byte)(
-				(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 0),
+			ret = (*hcs12bdm_handler->write_byte)(
+				(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 0),
 				(uint8_t)i);
 			if (ret != 0)
 				return ret;
 
-			ret = (*hc12bdm_handler->write_byte)(
-				(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 1),
-				hc12mcu_block_to_ppage_base(i));
+			ret = (*hcs12bdm_handler->write_byte)(
+				(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 1),
+				hcs12mcu_block_to_ppage_base(i));
 			if (ret != 0)
 				return ret;
 
-			ret = hc12bdm_agent_cmd(HC12_AGENT_CMD_FLASH_MASS_ERASE, NULL);
+			ret = hcs12bdm_agent_cmd(HCS12_AGENT_CMD_FLASH_MASS_ERASE, NULL);
 			if (ret != 0)
 				return ret;
 
@@ -1681,7 +1707,7 @@ static int hc12bdm_flash_erase(int unsecure)
 	}
 	else
 	{
-		ret = hc12bdm_hcs12_flash_mass_erase();
+		ret = hcs12bdm_hcs12_flash_mass_erase();
 		if (ret != 0)
 			return ret;
 	}
@@ -1693,30 +1719,30 @@ static int hc12bdm_flash_erase(int unsecure)
 	{
 		if (agent)
 		{
-			for (i = 0; i < hc12mcu_target.flash_blocks; ++ i)
+			for (i = 0; i < hcs12mcu_target.flash_blocks; ++ i)
 			{
 				/* param + 0: FLASH block number (byte)
 				   param + 1: PPAGE (byte) */
 
-				ret = (*hc12bdm_handler->write_byte)(
-					(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 0),
+				ret = (*hcs12bdm_handler->write_byte)(
+					(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 0),
 					(uint8_t)i);
 				if (ret != 0)
 					return ret;
 
-				ret = (*hc12bdm_handler->write_byte)(
-					(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 1),
-					hc12mcu_block_to_ppage_base(i));
+				ret = (*hcs12bdm_handler->write_byte)(
+					(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 1),
+					hcs12mcu_block_to_ppage_base(i));
 				if (ret != 0)
 					return ret;
 
-				ret = hc12bdm_agent_cmd(HC12_AGENT_CMD_FLASH_ERASE_VERIFY, &state);
+				ret = hcs12bdm_agent_cmd(HCS12_AGENT_CMD_FLASH_ERASE_VERIFY, &state);
 				if (ret != 0)
 					return ret;
 
-				if (state == HC12_AGENT_ERROR_NONE)
+				if (state == HCS12_AGENT_ERROR_NONE)
 					state = TRUE;
-				else if (state == HC12_AGENT_ERROR_VERIFY)
+				else if (state == HCS12_AGENT_ERROR_VERIFY)
 					state = FALSE;
 				else
 				{
@@ -1733,7 +1759,7 @@ static int hc12bdm_flash_erase(int unsecure)
 		}
 		else
 		{
-			ret = hc12bdm_hcs12_flash_erase_verify(&state);
+			ret = hcs12bdm_hcs12_flash_erase_verify(&state);
 			if (ret != 0)
 				return ret;
 		}
@@ -1754,8 +1780,8 @@ static int hc12bdm_flash_erase(int unsecure)
 	{
 		if (agent)
 		{
-			ret = (*hc12bdm_handler->write_word)(
-				hc12bdm_agent_buf_addr, 0xfffe);
+			ret = (*hcs12bdm_handler->write_word)(
+				hcs12bdm_agent_buf_addr, 0xfffe);
 			if (ret != 0)
 				return ret;
 
@@ -1764,43 +1790,43 @@ static int hc12bdm_flash_erase(int unsecure)
 			   param + 2: address (word)
 			   param + 4: data length (word) */
 
-			ret = (*hc12bdm_handler->write_byte)(
-				(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 0), 0);
+			ret = (*hcs12bdm_handler->write_byte)(
+				(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 0), 0);
 			if (ret != 0)
 				return ret;
 
-			ret = (*hc12bdm_handler->write_byte)(
-				(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 1),
-				(uint8_t)(hc12mcu_target.ppage_base + hc12mcu_target.ppage_count - 1));
+			ret = (*hcs12bdm_handler->write_byte)(
+				(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 1),
+				(uint8_t)(hcs12mcu_target.ppage_base + hcs12mcu_target.ppage_count - 1));
 			if (ret != 0)
 				return ret;
 
-			ret = (*hc12bdm_handler->write_word)(
-				(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 2), 0xff0e);
+			ret = (*hcs12bdm_handler->write_word)(
+				(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 2), 0xff0e);
 			if (ret != 0)
 				return ret;
 
-			ret = (*hc12bdm_handler->write_word)(
-				(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 4), 2);
+			ret = (*hcs12bdm_handler->write_word)(
+				(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 4), 2);
 			if (ret != 0)
 				return ret;
 
-			ret = hc12bdm_agent_cmd(HC12_AGENT_CMD_FLASH_WRITE, NULL);
+			ret = hcs12bdm_agent_cmd(HCS12_AGENT_CMD_FLASH_WRITE, NULL);
 			if (ret != 0)
 				return ret;
 		}
 		else
 		{
-			ret = (*hc12bdm_handler->write_byte)(HCS12_IO_FCNFG, 0);
+			ret = (*hcs12bdm_handler->write_byte)(HCS12_IO_FCNFG, 0);
 			if (ret != 0)
 				return ret;
 
-			ret = (*hc12bdm_handler->write_byte)(HCS12_IO_PPAGE,
-				(uint8_t)(hc12mcu_target.ppage_base + hc12mcu_target.ppage_count - 1));
+			ret = (*hcs12bdm_handler->write_byte)(HCS12_IO_PPAGE,
+				(uint8_t)(hcs12mcu_target.ppage_base + hcs12mcu_target.ppage_count - 1));
 			if (ret != 0)
 				return ret;
 
-			ret = hc12bdm_hcs12_flash_program(0xff0e, 0xfffe);
+			ret = hcs12bdm_hcs12_flash_program(0xff0e, 0xfffe);
 			if (ret != 0)
 				return ret;
 		}
@@ -1824,7 +1850,7 @@ static int hc12bdm_flash_erase(int unsecure)
  *    status code (errno-like)
  */
 
-static int hc12bdm_agent_cmd_flash(uint8_t cmd, uint32_t addr, uint16_t size)
+static int hcs12bdm_agent_cmd_flash(uint8_t cmd, uint32_t addr, uint16_t size)
 {
 	int ret;
 
@@ -1833,32 +1859,32 @@ static int hc12bdm_agent_cmd_flash(uint8_t cmd, uint32_t addr, uint16_t size)
 	   param + 2: address (word)
 	   param + 4: data length (word) */
 
-	ret = (*hc12bdm_handler->write_byte)(
-		(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 0),
-		hc12mcu_linear_to_block(addr));
+	ret = (*hcs12bdm_handler->write_byte)(
+		(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 0),
+		hcs12mcu_linear_to_block(addr));
 	if (ret != 0)
 		return ret;
 
-	ret = (*hc12bdm_handler->write_byte)(
-		(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 1),
-		hc12mcu_linear_to_ppage(addr));
+	ret = (*hcs12bdm_handler->write_byte)(
+		(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 1),
+		hcs12mcu_linear_to_ppage(addr));
 	if (ret != 0)
 		return ret;
 
-	ret = (*hc12bdm_handler->write_word)(
-		(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 2),
-		(uint16_t)(HCS12_FLASH_BANK_WINDOW_ADDR +
-			   (addr % HCS12_FLASH_BANK_WINDOW_SIZE)));
+	ret = (*hcs12bdm_handler->write_word)(
+		(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 2),
+		(uint16_t)(HCS12_FLASH_PAGE_BANKED_ADDR +
+			   (addr % HCS12_FLASH_PAGE_SIZE)));
 	if (ret != 0)
 		return ret;
 
-	ret = (*hc12bdm_handler->write_word)(
-		(uint16_t)(hc12bdm_agent_param + HC12_AGENT_PARAM + 4),
+	ret = (*hcs12bdm_handler->write_word)(
+		(uint16_t)(hcs12bdm_agent_param + HCS12_AGENT_PARAM + 4),
 		(uint16_t)size);
 	if (ret != 0)
 		return ret;
 
-	ret = hc12bdm_agent_cmd(cmd, NULL);
+	ret = hcs12bdm_agent_cmd(cmd, NULL);
 	if (ret != 0)
 		return ret;
 
@@ -1875,34 +1901,34 @@ static int hc12bdm_agent_cmd_flash(uint8_t cmd, uint32_t addr, uint16_t size)
  *    status code (errno-like)
  */
 
-static int hc12bdm_flash_set_bank_ppage(uint32_t addr)
+static int hcs12bdm_flash_set_bank_ppage(uint32_t addr)
 {
 	uint8_t p;
 	int ret;
 
-	if (hc12bdm_ppage == 0xff)
+	if (hcs12bdm_ppage == 0xff)
 	{
-		ret = (*hc12bdm_handler->read_byte)(
-			HCS12_IO_PPAGE, &hc12bdm_ppage);
+		ret = (*hcs12bdm_handler->read_byte)(
+			HCS12_IO_PPAGE, &hcs12bdm_ppage);
 		if (ret != 0)
 			return ret;
 	}
 
-	p = hc12mcu_linear_to_ppage(addr);
-	if (p != hc12bdm_ppage)
+	p = hcs12mcu_linear_to_ppage(addr);
+	if (p != hcs12bdm_ppage)
 	{
-		ret = (*hc12bdm_handler->write_byte)(
+		ret = (*hcs12bdm_handler->write_byte)(
 			HCS12_IO_FCNFG,
-			hc12mcu_linear_to_block(addr));
+			hcs12mcu_linear_to_block(addr));
 		if (ret != 0)
 			return ret;
 
-		ret = (*hc12bdm_handler->write_byte)(
+		ret = (*hcs12bdm_handler->write_byte)(
 			HCS12_IO_PPAGE, p);
 		if (ret != 0)
 			return ret;
 
-		hc12bdm_ppage = p;
+		hcs12bdm_ppage = p;
 	}
 
 	return 0;
@@ -1920,17 +1946,17 @@ static int hc12bdm_flash_set_bank_ppage(uint32_t addr)
  *    status code (errno-like)
  */
 
-static int hc12bdm_flash_read_cb_direct(uint32_t addr, void *buf, size_t size)
+static int hcs12bdm_flash_read_cb_direct(uint32_t addr, void *buf, size_t size)
 {
 	int ret;
 
-	ret = hc12bdm_flash_set_bank_ppage(addr);
+	ret = hcs12bdm_flash_set_bank_ppage(addr);
 	if (ret != 0)
 		return ret;
 
-	ret = (*hc12bdm_handler->read_mem)(
-		(uint16_t)(HCS12_FLASH_BANK_WINDOW_ADDR +
-			   (addr % HCS12_FLASH_BANK_WINDOW_SIZE)),
+	ret = (*hcs12bdm_handler->read_mem)(
+		(uint16_t)(HCS12_FLASH_PAGE_BANKED_ADDR +
+			   (addr % HCS12_FLASH_PAGE_SIZE)),
 		buf, size);
 	if (ret != 0)
 		return ret;
@@ -1939,17 +1965,17 @@ static int hc12bdm_flash_read_cb_direct(uint32_t addr, void *buf, size_t size)
 }
 
 
-static int hc12bdm_flash_read_cb_agent(uint32_t addr, void *buf, size_t size)
+static int hcs12bdm_flash_read_cb_agent(uint32_t addr, void *buf, size_t size)
 {
 	int ret;
 
-	ret = hc12bdm_agent_cmd_flash(
-		HC12_AGENT_CMD_FLASH_READ, addr, (uint16_t)size);
+	ret = hcs12bdm_agent_cmd_flash(
+		HCS12_AGENT_CMD_FLASH_READ, addr, (uint16_t)size);
 	if (ret != 0)
 		return ret;
 
-	ret = (*hc12bdm_handler->read_mem)(
-		(uint16_t)hc12bdm_agent_buf_addr, buf, (uint16_t)size);
+	ret = (*hcs12bdm_handler->read_mem)(
+		(uint16_t)hcs12bdm_agent_buf_addr, buf, (uint16_t)size);
 	if (ret != 0)
 		return ret;
 
@@ -1966,22 +1992,22 @@ static int hc12bdm_flash_read_cb_agent(uint32_t addr, void *buf, size_t size)
  *    status code (errno-like)
  */
 
-static int hc12bdm_flash_read(const char *file)
+static int hcs12bdm_flash_read(const char *file)
 {
 	int ret;
 	int agent;
 
-	ret = hc12bdm_get_mode("bdm_flash_read", &agent);
+	ret = hcs12bdm_get_mode("bdm_flash_read", &agent);
 	if (ret != 0)
 		return ret;
 
-	if (hc12mcu_target.flash_size == 0)
+	if (hcs12mcu_target.flash_size == 0)
 	{
 		error("FLASH read not possible - no FLASH memory\n");
 		return EINVAL;
 	}
 
-	if (hc12mcu_target.secured && !options.force)
+	if (hcs12mcu_target.secured && !options.force)
 	{
 		error("FLASH read not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -1989,15 +2015,15 @@ static int hc12bdm_flash_read(const char *file)
 
 	if (agent)
 	{
-		ret = hc12bdm_agent_load();
+		ret = hcs12bdm_agent_load();
 		if (ret != 0)
 			return ret;
 
-		return hc12mcu_flash_read(file, hc12bdm_agent_buf_len, hc12bdm_flash_read_cb_agent);
+		return hcs12mcu_flash_read(file, hcs12bdm_agent_buf_len, hcs12bdm_flash_read_cb_agent);
 	}
 
-	hc12bdm_ppage = 0xff; /* invalid ppage to start with, and force proper init */
-	return hc12mcu_flash_read(file, HC12BDM_FLASH_READ_CHUNK, hc12bdm_flash_read_cb_direct);
+	hcs12bdm_ppage = 0xff; /* invalid ppage to start with, and force proper init */
+	return hcs12mcu_flash_read(file, HCS12BDM_FLASH_READ_CHUNK, hcs12bdm_flash_read_cb_direct);
 }
 
 
@@ -2012,20 +2038,20 @@ static int hc12bdm_flash_read(const char *file)
  *    status code (errno-like)
  */
 
-static int hc12bdm_flash_write_cb_direct(uint32_t addr, const void *buf, size_t size)
+static int hcs12bdm_flash_write_cb_direct(uint32_t addr, const void *buf, size_t size)
 {
 	int ret;
 	size_t i;
 
-	ret = hc12bdm_flash_set_bank_ppage(addr);
+	ret = hcs12bdm_flash_set_bank_ppage(addr);
 	if (ret != 0)
 		return ret;
 
 	for (i = 0; i < size; i += 2)
 	{
-		ret = hc12bdm_hcs12_flash_program(
-			(uint16_t)(HCS12_FLASH_BANK_WINDOW_ADDR +
-			((addr + i) % HCS12_FLASH_BANK_WINDOW_SIZE)),
+		ret = hcs12bdm_hcs12_flash_program(
+			(uint16_t)(HCS12_FLASH_PAGE_BANKED_ADDR +
+			((addr + i) % HCS12_FLASH_PAGE_SIZE)),
 			uint16_be2host_from_buf((const uint8_t *)buf + i));
 		if (ret != 0)
 			return ret;
@@ -2035,17 +2061,17 @@ static int hc12bdm_flash_write_cb_direct(uint32_t addr, const void *buf, size_t 
 }
 
 
-static int hc12bdm_flash_write_cb_agent(uint32_t addr, const void *buf, size_t size)
+static int hcs12bdm_flash_write_cb_agent(uint32_t addr, const void *buf, size_t size)
 {
 	int ret;
 
-	ret = (*hc12bdm_handler->write_mem)(
-		hc12bdm_agent_buf_addr, buf, (uint16_t)size);
+	ret = (*hcs12bdm_handler->write_mem)(
+		hcs12bdm_agent_buf_addr, buf, (uint16_t)size);
 	if (ret != 0)
 		return ret;
 
-	ret = hc12bdm_agent_cmd_flash(
-		HC12_AGENT_CMD_FLASH_WRITE, addr, (uint16_t)size);
+	ret = hcs12bdm_agent_cmd_flash(
+		HCS12_AGENT_CMD_FLASH_WRITE, addr, (uint16_t)size);
 	if (ret != 0)
 		return ret;
 
@@ -2062,22 +2088,22 @@ static int hc12bdm_flash_write_cb_agent(uint32_t addr, const void *buf, size_t s
  *    status code (errno-like)
  */
 
-static int hc12bdm_flash_write(const char *file)
+static int hcs12bdm_flash_write(const char *file)
 {
 	int ret;
 	int agent;
 
-	ret = hc12bdm_get_mode("bdm_flash_write", &agent);
+	ret = hcs12bdm_get_mode("bdm_flash_write", &agent);
 	if (ret != 0)
 		return ret;
 
-	if (hc12mcu_target.flash_size == 0)
+	if (hcs12mcu_target.flash_size == 0)
 	{
 		error("FLASH write not possible - no FLASH memory\n");
 		return EINVAL;
 	}
 
-	if (hc12mcu_target.secured && !options.force)
+	if (hcs12mcu_target.secured && !options.force)
 	{
 		error("FLASH write not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
@@ -2085,15 +2111,15 @@ static int hc12bdm_flash_write(const char *file)
 
 	if (agent)
 	{
-		ret = hc12bdm_agent_load();
+		ret = hcs12bdm_agent_load();
 		if (ret != 0)
 			return ret;
 
-		return hc12mcu_flash_write(file, hc12bdm_agent_buf_len, hc12bdm_flash_write_cb_agent);
+		return hcs12mcu_flash_write(file, hcs12bdm_agent_buf_len, hcs12bdm_flash_write_cb_agent);
 	}
 
-	hc12bdm_ppage = 0xff; /* invalid ppage to start with, and force proper init */
-	return hc12mcu_flash_write(file, HC12BDM_FLASH_WRITE_CHUNK, hc12bdm_flash_write_cb_direct);
+	hcs12bdm_ppage = 0xff; /* invalid ppage to start with, and force proper init */
+	return hcs12mcu_flash_write(file, HCS12BDM_FLASH_WRITE_CHUNK, hcs12bdm_flash_write_cb_direct);
 }
 
 
@@ -2106,7 +2132,7 @@ static int hc12bdm_flash_write(const char *file)
  *    status code (errno-like)
  */
 
-static int hc12bdm_flash_protect(const char *opt)
+static int hcs12bdm_flash_protect(const char *opt)
 {
 	return 0;
 }
@@ -2121,23 +2147,23 @@ static int hc12bdm_flash_protect(const char *opt)
  *    status code (errno-like)
  */
 
-static int hc12bdm_open(void)
+static int hcs12bdm_open(void)
 {
 	int ret;
 
-	ret = (*hc12bdm_handler->open)();
+	ret = (*hcs12bdm_handler->open)();
 	if (ret != 0)
 		return ret;
 
-	hc12mcu_target.read_byte = hc12bdm_handler->read_byte;
-	hc12mcu_target.read_word = hc12bdm_handler->read_word;
-	hc12mcu_target.write_byte = hc12bdm_handler->write_byte;
-	hc12mcu_target.write_word = hc12bdm_handler->write_word;
+	hcs12mcu_target.read_byte = hcs12bdm_handler->read_byte;
+	hcs12mcu_target.read_word = hcs12bdm_handler->read_word;
+	hcs12mcu_target.write_byte = hcs12bdm_handler->write_byte;
+	hcs12mcu_target.write_word = hcs12bdm_handler->write_word;
 
-	ret = hc12bdm_init(options.verbose);
+	ret = hcs12bdm_init(options.verbose);
 	if (ret != 0)
 	{
-		(*hc12bdm_handler->close)();
+		(*hcs12bdm_handler->close)();
 		return ret;
 	}
 
@@ -2154,9 +2180,9 @@ static int hc12bdm_open(void)
  *    status code (errno-like)
  */
 
-static int hc12bdm_close(void)
+static int hcs12bdm_close(void)
 {
-	return (*hc12bdm_handler->close)();
+	return (*hcs12bdm_handler->close)();
 }
 
 
@@ -2169,32 +2195,32 @@ static int hc12bdm_close(void)
  *    status code (errno-like)
  */
 
-static int hc12bdm12pod_open(void)
+static int hcs12bdm12pod_open(void)
 {
-	hc12bdm_handler = &bdm12pod_bdm_handler;
-	return hc12bdm_open();
+	hcs12bdm_handler = &bdm12pod_bdm_handler;
+	return hcs12bdm_open();
 }
 
 
 /* BDM handler for BDM12POD */
 
-hc12mem_target_handler_t hc12mem_target_handler_bdm12pod =
+hcs12mem_target_handler_t hcs12mem_target_handler_bdm12pod =
 {
 	"bdm12pod",
-	hc12bdm12pod_open,
-	hc12bdm_close,
-	hc12bdm_ram_run,
-	hc12bdm_unsecure,
-	hc12bdm_secure,
-	hc12bdm_eeprom_read,
-	hc12bdm_eeprom_erase,
-	hc12bdm_eeprom_write,
-	hc12bdm_eeprom_protect,
-	hc12bdm_flash_read,
-	hc12bdm_flash_erase,
-	hc12bdm_flash_write,
-	hc12bdm_flash_protect,
-	hc12bdm_reset
+	hcs12bdm12pod_open,
+	hcs12bdm_close,
+	hcs12bdm_ram_run,
+	hcs12bdm_unsecure,
+	hcs12bdm_secure,
+	hcs12bdm_eeprom_read,
+	hcs12bdm_eeprom_erase,
+	hcs12bdm_eeprom_write,
+	hcs12bdm_eeprom_protect,
+	hcs12bdm_flash_read,
+	hcs12bdm_flash_erase,
+	hcs12bdm_flash_write,
+	hcs12bdm_flash_protect,
+	hcs12bdm_reset
 };
 
 
@@ -2207,30 +2233,30 @@ hc12mem_target_handler_t hc12mem_target_handler_bdm12pod =
  *    status code (errno-like)
  */
 
-static int hc12tbdml_open(void)
+static int hcs12tbdml_open(void)
 {
-	hc12bdm_handler = &tbdml_bdm_handler;
-	return hc12bdm_open();
+	hcs12bdm_handler = &tbdml_bdm_handler;
+	return hcs12bdm_open();
 }
 
 
 /* BDM handler for TBDML */
 
-hc12mem_target_handler_t hc12mem_target_handler_tbdml =
+hcs12mem_target_handler_t hcs12mem_target_handler_tbdml =
 {
 	"tbdml",
-	hc12tbdml_open,
-	hc12bdm_close,
-	hc12bdm_ram_run,
-	hc12bdm_unsecure,
-	hc12bdm_secure,
-	hc12bdm_eeprom_read,
-	hc12bdm_eeprom_erase,
-	hc12bdm_eeprom_write,
-	hc12bdm_eeprom_protect,
-	hc12bdm_flash_read,
-	hc12bdm_flash_erase,
-	hc12bdm_flash_write,
-	hc12bdm_flash_protect,
-	hc12bdm_reset
+	hcs12tbdml_open,
+	hcs12bdm_close,
+	hcs12bdm_ram_run,
+	hcs12bdm_unsecure,
+	hcs12bdm_secure,
+	hcs12bdm_eeprom_read,
+	hcs12bdm_eeprom_erase,
+	hcs12bdm_eeprom_write,
+	hcs12bdm_eeprom_protect,
+	hcs12bdm_flash_read,
+	hcs12bdm_flash_erase,
+	hcs12bdm_flash_write,
+	hcs12bdm_flash_protect,
+	hcs12bdm_reset
 };

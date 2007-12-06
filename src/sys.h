@@ -1,9 +1,10 @@
 /*
-    hc12mem - HC12 memory reader & writer
-    sys.h: operating system interface routines
-    $Id$
+    hcs12mem - HC12/S12 memory reader & writer
+    Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 
-    Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+    sys.h: operating system interface
+
+    $Id$
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -155,6 +156,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <ctype.h>
+#include <io.h>
 
 #define SYS_PATH_SEPARATOR '\\'
 #define SYS_MAX_PATH MAX_PATH
@@ -173,6 +175,9 @@ extern char *strerror(int error);
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
 #define strdup _strdup
+
+#define isatty(handle) _isatty(handle)
+#define fileno(stream) _fileno(stream)
 
 #define R_OK 0x04
 extern int access(const char *path, int mode);

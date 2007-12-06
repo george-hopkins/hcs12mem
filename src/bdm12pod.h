@@ -1,9 +1,10 @@
 /*
-    hc12mem - HC12 memory reader & writer
-    bdm12pod.h: Kevin Ross' BDM12POD driver
-    $Id$
+    hcs12mem - HC12/S12 memory reader & writer
+    Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 
-    Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+    bdm12pod.h: Kevin Ross' BDM12POD driver
+
+    $Id$
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -23,7 +24,7 @@
 #ifndef __BDM12POD_H
 #define __BDM12POD_H
 
-#include "hc12bdm.h"
+#include "hcs12bdm.h"
 
 /* timeouts and delays */
 
@@ -64,6 +65,6 @@
 
 /* BDM12POD handler */
 
-extern hc12bdm_handler_t bdm12pod_bdm_handler;
+extern hcs12bdm_handler_t bdm12pod_bdm_handler;
 
 #endif /* __BDM12POD_H */

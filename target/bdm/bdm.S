@@ -1,10 +1,10 @@
 /*
-    hc12mem - HC12 memory reader & writer
+    hcs12mem - HC12/S12 memory reader & writer
     generic_f1b_ram1k_bdm.S: geeneric RAM agent for MC9S12 MCU, with single
     FLASH block and at least 1k of RAM, run via BDM
     $Id$
 
-    Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+    Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -46,36 +46,36 @@ buffer:
 _start:
 	lds #_stack
 	ldaa cmd
-	cmpa #HC12_AGENT_CMD_INIT
+	cmpa #HCS12_AGENT_CMD_INIT
 	beq init
-	cmpa #HC12_AGENT_CMD_EEPROM_MASS_ERASE
+	cmpa #HCS12_AGENT_CMD_EEPROM_MASS_ERASE
 	beq eeprom_mass_erase
-	cmpa #HC12_AGENT_CMD_EEPROM_ERASE_VERIFY
+	cmpa #HCS12_AGENT_CMD_EEPROM_ERASE_VERIFY
 	beq eeprom_erase_verify
-	cmpa #HC12_AGENT_CMD_EEPROM_READ
+	cmpa #HCS12_AGENT_CMD_EEPROM_READ
 	beq eeprom_read
-	cmpa #HC12_AGENT_CMD_EEPROM_WRITE
+	cmpa #HCS12_AGENT_CMD_EEPROM_WRITE
 	beq eeprom_write
-	cmpa #HC12_AGENT_CMD_FLASH_MASS_ERASE
+	cmpa #HCS12_AGENT_CMD_FLASH_MASS_ERASE
 	beq flash_mass_erase
-	cmpa #HC12_AGENT_CMD_FLASH_ERASE_VERIFY
+	cmpa #HCS12_AGENT_CMD_FLASH_ERASE_VERIFY
 	beq flash_erase_verify
-	cmpa #HC12_AGENT_CMD_FLASH_READ
+	cmpa #HCS12_AGENT_CMD_FLASH_READ
 	beq flash_read
-	cmpa #HC12_AGENT_CMD_FLASH_WRITE
+	cmpa #HCS12_AGENT_CMD_FLASH_WRITE
 	beq flash_write
-	movb #HC12_AGENT_ERROR_CMD,status
+	movb #HCS12_AGENT_ERROR_CMD,status
 	bgnd
 
 
 done:
-	movb #HC12_AGENT_ERROR_NONE,status
+	movb #HCS12_AGENT_ERROR_NONE,status
 	bgnd
 
 
 init:
 	; ignore osc frequency in (param)
-	; because ECLKDIV and FCLKDIV are set by hc12mem
+	; because ECLKDIV and FCLKDIV are set by hcs12mem
 
 	movw #buffer,param+0
 	movw #BUFFER_SIZE,param+2
@@ -105,7 +105,7 @@ eeprom_erase_verify:
 	brclr _io+ESTAT,#ESTAT_BLANK,eeprom_erase_verify_error
 	bra done
 eeprom_erase_verify_error:
-	movb #HC12_AGENT_ERROR_VERIFY,status
+	movb #HCS12_AGENT_ERROR_VERIFY,status
 	bgnd
 
 
@@ -170,7 +170,7 @@ flash_erase_verify:
 	brclr _io+FSTAT,#FSTAT_BLANK,flash_erase_verify_error
 	bra done
 flash_erase_verify_error:
-	movb #HC12_AGENT_ERROR_VERIFY,status
+	movb #HCS12_AGENT_ERROR_VERIFY,status
 	bgnd
 
 

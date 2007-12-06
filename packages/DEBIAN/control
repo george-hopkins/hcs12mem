@@ -1,0 +1,18 @@
+Package: hcs12mem
+Version: 1.4.1
+Section: devel
+Priority: optional
+Architecture: all
+Essential: no
+Depends: 
+Pre-Depends: 
+Recommends: 
+Suggests: 
+Installed-Size: 392
+Maintainer: Michal Konieczny <mk@cml.mfk.net.pl>
+Conflicts: 
+Replaces: 
+Provides: hcs12mem
+Description: The description can contain free-form text
+             describing the function of the program, what
+             kind of features it has, and so on.

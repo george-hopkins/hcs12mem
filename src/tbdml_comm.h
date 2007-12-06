@@ -1,6 +1,6 @@
 /*
-    hc12mem - HC12 memory reader & writer
-    Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+    hcs12mem - HC12/S12 memory reader & writer
+    Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 
     tbdml_comm.h: Turbo BDM Light interface - communication details
     based on

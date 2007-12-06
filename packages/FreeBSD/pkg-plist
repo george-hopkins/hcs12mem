@@ -1,4 +1,4 @@
-bin/hc12mem
+bin/hcs12mem
 %%DATADIR%%/mc9s12a128.dat
 %%DATADIR%%/mc9s12a256.dat
 %%DATADIR%%/mc9s12a32.dat
@@ -26,6 +26,8 @@ bin/hc12mem
 %%DATADIR%%/mc9s12h256.dat
 %%DATADIR%%/mc9s12ne64.dat
 %%DATADIR%%/mc9s12uf32.dat
+%%DATADIR%%/mc9s12xd256.dat
+%%DATADIR%%/mc9s12xd512.dat
 %%DATADIR%%/bdm.s19
 %%DATADIR%%/lrae.s19
 @dirrm %%DATADIR%%

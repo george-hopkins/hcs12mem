@@ -1,16 +1,16 @@
-.TH "HC12MEM" 1 "" "hc12mem V@VERSION@" "User Commands"
+.TH "HCS12MEM" 1 "" "hcs12mem V@VERSION@" "User Commands"
 .SH NAME
-hc12mem - Freescale HC12-family memory reader/writer
+hcs12mem - Freescale S12 MCU family memory reader/writer
 .SH SYNOPSIS
-.B hc12mem
+.B hcs12mem
 [ option | filename ] ...
 .SH DESCRIPTION
-.B hc12mem
-is a tool for operating on Freescale HC12 MCU's internal memories
+.B hcs12mem
+is a tool for operating on Freescale S12 MCU's internal memories
 (EEPROM and FLASH). It can:
 .PD 0
 .PP
-- load any program into HC12 RAM and execute it,
+- load any program into S12 RAM and execute it,
 .PP
 - erase, read, write EEPROM, set EEPROM protection,
 .PP
@@ -20,7 +20,7 @@ is a tool for operating on Freescale HC12 MCU's internal memories
 .PD
 .SH "SUPPORTED INTERFACES"
 .PP
-hc12mem can communicate with the target device using BDM link or serial port.
+hcs12mem can communicate with the target device using BDM link or serial port.
 .PP
 .B BDM POD
 .PP
@@ -52,33 +52,33 @@ found in original design, see
 .PP
 .B BOOTLOADER (Freescale's LRAE via serial port)
 .PP
-hc12mem supports operations on target memory using Freescale's LRAE
+hcs12mem supports operations on target memory using Freescale's LRAE
 (Load RAM And Execute) bootloader, using serial port connection
 (SCI0 on target hardware). Prior to all operations, presence of LRAE
 bootloader is required in target's FLASH memory. LRAE is
-available for a wide selection of HCS12 MCUs. Source code, S-record
+available for a wide selection of S12 MCUs. Source code, S-record
 files and description can be obtained from Freescale as Application
-Note - AN2546. This bootloader is supposedly loaded into new HCS12
+Note - AN2546. This bootloader is supposedly loaded into new S12
 MCUs as last stage of factory processing, thus some "fresh" parts straight
 from Freescale should have this bootloader already in FLASH memory.
 .PP
 .B MONITOR (Freescale's serial monitor - AN2548)
 .PP
-hc12mem supports operations on target memory using Freescale's serial monitor
+hcs12mem supports operations on target memory using Freescale's serial monitor
 (AN2548). This monitor uses serial port connection (SCI0 on target hardware).
 Prior to all operations, presence of serial monitor is required in target's
-FLASH memory. Monitor is available for a wide selection of HCS12 MCUs.
+FLASH memory. Monitor is available for a wide selection of S12 MCUs.
 Source code, S-record files and description can be obtained from Freescale
 as Application Note - AN2548. Port of the source code to GNU tools is
 available, see "SEE ALSO" section.
 .SH "SUPPORTED MCUs"
 .PP
-Support for various HCS12 derivatives is dependent on target device
+Support for various S12 derivatives is dependent on target device
 connection.
 .PP
 .B BDM
 .PP
-hc12mem running via BDM supports almost all HCS12 derivatives (not all
+hcs12mem running via BDM supports almost all S12 derivatives (not all
 are tested, though, especially parts with multiple FLASH blocks are
 not tested):
 .PP
@@ -89,7 +89,7 @@ UF32, NE64.
 .PP
 .B LRAE BOOTLOADER
 .PP
-hc12mem using LRAE supports all derivatives that can run LRAE, according
+hcs12mem using LRAE supports all derivatives that can run LRAE, according
 to AN2546 (maybe some others too, if LRAE can work on them):
 .PP
 <MC9S12> A32, A64, A128, A256, A512, C32, C128,
@@ -97,7 +97,7 @@ D32, D64, D128, D256, D512, E128.
 .PP
 .B SERIAL MONITOR
 .PP
-hc12mem using serial monitor supports all derivatives that can run serial
+hcs12mem using serial monitor supports all derivatives that can run serial
 monitor. AN2548 has variants of serial monitor for the following targets
 (compiling dedicated version for other target is easy):
 .PP
@@ -173,7 +173,7 @@ For example,
 will treat this file as target description, and
 .B -t some_other_target
 will look for
-.I /usr/local/share/hc12mem/some_other_target.dat
+.I /usr/local/share/hcs12mem/some_other_target.dat
 file, if that's where program data files are located.
 .TP
 .B -o <freq>, --osc <freq>
@@ -274,7 +274,7 @@ security byte with value 0xfe.
 .B -G <file>, --flash-read <file>
 Read FLASH memory contents into S-record file.
 .TP
-.B -H <file>, --eeprom-write <file>
+.B -H <file>, --flash-write <file>
 Write FLASH memory contents from S-record file.
 .PP
 Options specific for particular interfaces:
@@ -304,7 +304,8 @@ Depending on the interface in use, different options are required:
 .PP
 TBDML - interface type and target type are required, no port specification
 is required (USB bus is assumed), no target frequency is required
-(TBDML can auto-detect it), but it can be overriden with -o option, if required.
+(TBDML can auto-detect it), but it can be overriden with -o option,
+if auto-detection fails and TBDML is unable to connect the target.
 .PP
 BDM12, PODEX - required are: interface type, target type,
 interface connection port and target frequency.
@@ -314,45 +315,45 @@ first example - interface is PODEX, serial port for PODEX attachment
 is /dev/uart0, target is MC9S12A64 MCU operating at 16MHz; second
 example - interface is TBDML (assumed connection via USB), target is
 MC9S12A64 MCU, operating frequency is auto-detected.
-.B hc12mem
+.B hcs12mem
 call usually requires some more action commands to do something specific,
 but such call with these options only is convenient for verifying target
 communication - it initializes the target, displays all the info and quits:
 .RS
 .PP
-hc12mem -i podex -p /dev/uart0 -t mc9s12a64 -o 16MHz
+hcs12mem -i podex -p /dev/uart0 -t mc9s12a64 -o 16MHz
 .PP
-hc12mem -i tbdml -t mc9s12a64
+hcs12mem -i tbdml -t mc9s12a64
 .RE
 .PP
 Unsecure secured microcontroller:
 .RS
 .PP
-hc12mem [-ipto] --unsecure
+hcs12mem [-ipto] --unsecure
 .RE
 .PP
 Secure unsecured microcontroller:
 .RS
 .PP
-hc12mem [-ipto] --secure
+hcs12mem [-ipto] --secure
 .RE
 .PP
 Load some code into target RAM and execute:
 .RS
 .PP
-hc12mem [-ipto] --ram-run some_code.s19
+hcs12mem [-ipto] --ram-run some_code.s19
 .RE
 .PP
 Read EEPROM contents:
 .RS
 .PP
-hc12mem [-ipto] --eeprom-read eeprom_data.s19
+hcs12mem [-ipto] --eeprom-read eeprom_data.s19
 .RE
 .PP
 Set EEPROM protection:
 .RS
 .PP
-hc12mem [-ipto] --eeprom-protect all
+hcs12mem [-ipto] --eeprom-protect all
 .RE
 .PP
 Read data from FLASH memory and write it to S-record file, use Freescale
@@ -360,14 +361,14 @@ banked linear addresses, write all erased 0xff's to output file (default
 is to skip them):
 .RS
 .PP
-hc12mem [-ipto] -e --flash-address banked-linear --flash-read flash_data.s19
+hcs12mem [-ipto] -e --flash-address banked-linear --flash-read flash_data.s19
 .RE
 .PP
 Write data from S-record file to FLASH memory (non-banked flat addressing,
 option -a non-banked assumed by default):
 .RS
 .PP
-hc12mem [-ipto] --flash-write flash_data.s19
+hcs12mem [-ipto] --flash-write flash_data.s19
 .RE
 .PP
 Action options can be specified multiple times, they are executed in specified
@@ -375,7 +376,7 @@ order, for example - erase FLASH, write program into FLASH and reset target,
 thus immediatelly starting program execution:
 .RS
 .PP
-hc12mem [-ipto] --flash-erase --flash-write program.s19 --reset
+hcs12mem [-ipto] --flash-erase --flash-write program.s19 --reset
 .RE
 .PP
 .B LRAE BOOTLOADER (AN2546)
@@ -383,36 +384,36 @@ hc12mem [-ipto] --flash-erase --flash-write program.s19 --reset
 Using LRAE serial bootloader, we specify following common options:
 .RS
 .PP
-hc12mem -i lrae -p /dev/uart0 -t mc9s12a64 -o 16MHz
+hcs12mem -i lrae -p /dev/uart0 -t mc9s12a64 -o 16MHz
 .RE
 .PP
-Baud rate for serial connection is automatically calculated by hc12mem, using
+Baud rate for serial connection is automatically calculated by hcs12mem, using
 supplied oscillator frequency as reference. You can override auto-selected baud
 rate with -b <baud> option, if some other speed is preferred.
 .PP
 Load your program into target RAM, and execute it:
 .RS
 .PP
-hc12mem [-ipto] --ram-run program.s19
+hcs12mem [-ipto] --ram-run program.s19
 .RE
 .PP
 Write your program into target FLASH, keeping LRAE in FLASH:
 .RS
 .PP
-hc12mem [-ipto] --flash-erase --keep-lrae --flash-write program.s19
+hcs12mem [-ipto] --flash-erase --keep-lrae --flash-write program.s19
 .RE
 .PP
 Bulk erase FLASH memory, load LRAE and your program:
 .RS
 .PP
-hc12mem [-ipto] --flash-erase --flash-write lrae.s19 --flash-write program.s19
+hcs12mem [-ipto] --flash-erase --flash-write lrae.s19 --flash-write program.s19
 .RE
 .PP
 NOTES: reloading FLASH program using LRAE is tricky, because when your program
 is loaded into FLASH, LRAE is not running anymore. Thus, if you want to reuse LRAE,
 your program must have a way to enter LRAE on request, for example push button
 tested as very first thing in your program or something like that.
-Also, every hc12mem call using LRAE requires preceding manual target reset.
+Also, every hcs12mem call using LRAE requires preceding manual target reset.
 .PP
 Writing program destined to be loaded into FLASH memory in coexistence with
 LRAE bootloader has special requirements (memory layout, MCU initialization),
@@ -424,7 +425,7 @@ Using serial monitor, we specify following common options (oscillator frequency
 is not required):
 .RS
 .PP
-hc12mem -i sm -p /dev/uart0 -t mc9s12a64
+hcs12mem -i sm -p /dev/uart0 -t mc9s12a64
 .RE
 .PP
 Baud rate for serial connection is 115200bps by default. If you have special
@@ -446,14 +447,14 @@ this)
 Erase EEPROM, write some initial data and protect upper 256 bytes of EEPROM:
 .RS
 .PP
-hc12mem [-ipto] --eeprom-erase --eeprom-write eeprom.s19 --eeprom-protect 256B
+hcs12mem [-ipto] --eeprom-erase --eeprom-write eeprom.s19 --eeprom-protect 256B
 .RE
 .PP
 Erase FLASH (EEPROM gets erased too), write your program and reset target (thus
 starting your program):
 .RS
 .PP
-hc12mem [-ipt] --flash-erase --flash-write program.s19 --reset
+hcs12mem [-ipt] --flash-erase --flash-write program.s19 --reset
 .RE
 .PP
 Writing program destined to be loaded into FLASH memory in coexistence with
@@ -470,10 +471,10 @@ MCUs with more that single FLASH block are barely tested.
 .PD 0
 .PP
 .I http://www.freescale.com
-- Freescale's web page, all HCS12 MCU info
+- Freescale's web page, all S12 MCU info
 .PP
-.I http://cml.mfk.net.pl/hc12mem
-- hc12mem web page
+.I http://cml.mfk.net.pl/hcs12mem
+- hcs12mem web page
 .PP
 .I http://cml.mfk.net.pl/podex
 - improved PODEX web page
@@ -491,8 +492,8 @@ MCUs with more that single FLASH block are barely tested.
 - my port of Freescale's serial monitor (AN2548) to GNU tools
 .PD
 .SH "COPYRIGHT"
-(C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+(C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 .PP
-hc12mem is free software, covered by the GNU General Public License.  You are
+hcs12mem is free software, covered by the GNU General Public License.  You are
 welcome to change it and/or distribute copies of it under the conditions of
 the GNU General Public License.

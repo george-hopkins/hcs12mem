@@ -1,6 +1,6 @@
 /*
-    hc12mem - HC12 memory reader & writer
-    Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+    hcs12mem - HCS12/S12 memory reader & writer
+    Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 
     tbdml.h: Turbo BDM Light interface
     based on
@@ -24,7 +24,7 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "hc12mem.h"
+#include "hcs12mem.h"
 #include "tbdml.h"
 #include "tbdml_comm.h"
 #include "sys_usb.h"
@@ -702,22 +702,22 @@ static int tbdml_read_reg(int reg, uint16_t *v)
 
 	switch (reg)
 	{
-		case HC12BDM_REG_PC:
+		case HCS12BDM_REG_PC:
 			*v = uint16_le2host_from_buf(r.pc);
 			break;
-		case HC12BDM_REG_D:
+		case HCS12BDM_REG_D:
 			*v = uint16_le2host_from_buf(r.d);
 			break;
-		case HC12BDM_REG_X:
+		case HCS12BDM_REG_X:
 			*v = uint16_le2host_from_buf(r.ix);
 			break;
-		case HC12BDM_REG_Y:
+		case HCS12BDM_REG_Y:
 			*v = uint16_le2host_from_buf(r.iy);
 			break;
-		case HC12BDM_REG_SP:
+		case HCS12BDM_REG_SP:
 			*v = uint16_le2host_from_buf(r.sp);
 			break;
-		case HC12BDM_REG_CCR:
+		case HCS12BDM_REG_CCR:
 			*v = uint16_le2host_from_buf(r.ccr);
 			break;
 		default:
@@ -745,22 +745,22 @@ static int tbdml_write_reg(int reg, uint16_t v)
 
 	switch (reg)
 	{
-		case HC12BDM_REG_PC:
+		case HCS12BDM_REG_PC:
 			cmd = TBDML_CMD_WRITE_REG_PC;
 			break;
-		case HC12BDM_REG_D:
+		case HCS12BDM_REG_D:
 			cmd = TBDML_CMD_WRITE_REG_D;
 			break;
-		case HC12BDM_REG_X:
+		case HCS12BDM_REG_X:
 			cmd = TBDML_CMD_WRITE_REG_X;
 			break;
-		case HC12BDM_REG_Y:
+		case HCS12BDM_REG_Y:
 			cmd = TBDML_CMD_WRITE_REG_Y;
 			break;
-		case HC12BDM_REG_SP:
+		case HCS12BDM_REG_SP:
 			cmd = TBDML_CMD_WRITE_REG_SP;
 			break;
-		case HC12BDM_REG_CCR:
+		case HCS12BDM_REG_CCR:
 			cmd = TBDML_CMD_WRITE_REG_CCR;
 			break;
 		default:
@@ -913,7 +913,7 @@ static int tbdml_close(void)
 
 /* POD handler */
 
-hc12bdm_handler_t tbdml_bdm_handler =
+hcs12bdm_handler_t tbdml_bdm_handler =
 {
 	tbdml_open,
 	tbdml_close,

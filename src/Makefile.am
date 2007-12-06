@@ -1,4 +1,4 @@
-# hc12mem - HC12 memory reader & writer
+# hcs12mem - HC12/S12 memory reader & writer
 # Makefile.am: automake Makefile template
 #
 # Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
@@ -20,11 +20,11 @@
 srcdir = @srcdir@
 VPATH = @srcdir@
 
-AM_CFLAGS = -DHC12MEM_DATA_DIR=\"${pkgdatadir}\"
+AM_CFLAGS = -DHCS12MEM_DATA_DIR=\"${pkgdatadir}\"
 
-bin_PROGRAMS = hc12mem
+bin_PROGRAMS = hcs12mem
 
-hc12mem_SOURCES = \
+hcs12mem_SOURCES = \
 	sys.c \
 	sys.h \
 	serial.c \
@@ -38,16 +38,16 @@ hc12mem_SOURCES = \
 	tbdml_comm.h \
 	bdm12pod.c \
 	bdm12pod.h \
-	hc12bdm.c \
-	hc12bdm.h \
-	hc12lrae.c \
-	hc12lrae.h \
-	hc12sm.c \
-	hc12sm.h \
-	hc12mcu.c \
-	hc12mcu.h \
-	hc12mem.c \
-	hc12mem.h
+	hcs12bdm.c \
+	hcs12bdm.h \
+	hcs12lrae.c \
+	hcs12lrae.h \
+	hcs12sm.c \
+	hcs12sm.h \
+	hcs12mcu.c \
+	hcs12mcu.h \
+	hcs12mem.c \
+	hcs12mem.h
 
 EXTRA_DIST = \
 	getopt_own.c \

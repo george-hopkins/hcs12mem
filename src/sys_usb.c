@@ -1,6 +1,6 @@
 /*
-    hc12mem - HC12 memory reader & writer
-    Copyright (C) 2005 Michal Konieczny <mk@cml.mfk.net.pl>
+    hcs12mem - HC12/S12 memory reader & writer
+    Copyright (C) 2005,2006,2007 Michal Konieczny <mk@cml.mfk.net.pl>
 
     sys_usb.c: USB devices access via libusb
 
@@ -21,7 +21,7 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "hc12mem.h"
+#include "hcs12mem.h"
 #include "sys_usb.h"
 
 static int libusb_ref = 0;
