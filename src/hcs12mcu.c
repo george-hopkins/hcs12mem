@@ -832,6 +832,9 @@ static uint32_t hcs12mcu_flash_read_address_nb_in_banked(uint32_t addr)
 
 uint32_t hcs12mcu_flash_read_address_bl(uint32_t addr)
 {
+	/* the following code allows for non-banked addresses within banked-linear file
+	   but it's not used because probably that's not a good idea. */
+#if HCS12MEM_ALLOW_NONBANKED_IN_BANKEDLINEAR
 	/* PPAGE base >= 4 and PPAGE count != 0 means the chip with no valid
 	   paged linear address that covers non-banked address range
 	   0x0000-0xffff */
@@ -841,10 +844,10 @@ uint32_t hcs12mcu_flash_read_address_bl(uint32_t addr)
 		if (addr < hcs12mcu_target.flash_nb_base + hcs12mcu_target.flash_nb_size)
 			return hcs12mcu_flash_read_address_nb_in_banked(addr);
 	}
+#endif
 
 	return addr - hcs12mcu_target.flash_linear_base;
 }
-
 
 /* banked ppage -> buffer address */
 

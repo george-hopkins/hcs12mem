@@ -68,7 +68,7 @@ all 16-bit word data is transferred in intel (little) endian, i.e. LSB on lower 
 /* if command fails, the device responds with command code CMD_FAILED */
 /* if command succeeds, the device responds with the same command number followed by any results as appropriate */
 
-#define TBDML_MAX_DATA_SIZE         127 /* this is to make sure that response of READ_BLOCK plus the command status fit into 16 frames exactly */
+#define TBDML_MAX_DATA_SIZE         32/*127*/ /* this is to make sure that response of READ_BLOCK plus the command status fit into 16 frames exactly */
 
 /* System related commands */
 #define TBDML_CMD_OK                0  /* deprecated */

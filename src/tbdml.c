@@ -50,7 +50,8 @@ static sys_usb_dev_t tbdml_device;
 
 static int tbdml_cmd(uint8_t cmd, const void *btx, int ntx, void *brx, int nrx)
 {
-	uint8_t buf[TBDML_MAX_DATA_SIZE + 2];
+	/* answer length / status (1 byte) + cmd (1 byte) + address (2 bytes) + data length (1 byte) + data block */
+	uint8_t buf[2 + 3 + TBDML_MAX_DATA_SIZE];
 	size_t n;
 	int ret;
 
@@ -120,7 +121,8 @@ static int tbdml_cmd(uint8_t cmd, const void *btx, int ntx, void *brx, int nrx)
 
 static int tbdml_cmd_bulk(uint8_t cmd, const void *btx, size_t ntx, void *brx, size_t nrx)
 {
-	uint8_t buf[TBDML_MAX_DATA_SIZE + 3];
+	/* dummy byte (1 byte) + answer length / status (1 byte) + cmd (1 byte) + address (2 bytes) + data length (1 byte) + data block */
+	uint8_t buf[3 + 3 + TBDML_MAX_DATA_SIZE];
 	size_t size;
 	int ret;
 
@@ -556,6 +558,7 @@ static int tbdml_read_block(uint16_t *addr, uint8_t **buf, uint16_t len)
 
 static int tbdml_write_block(uint16_t *addr, const uint8_t **buf, uint16_t len)
 {
+	/* address (2 bytes) + length (1 byte) + data block */
 	uint8_t q[3 + TBDML_MAX_DATA_SIZE];
 	int ret;
 

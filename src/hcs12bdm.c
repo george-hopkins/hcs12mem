@@ -665,15 +665,16 @@ static int hcs12bdm_hcs12_flash_ccif_wait(void)
  *  mass erase target FLASH
  *
  *  in:
- *    void
+ *    t - erase time
  *  out:
  *    status code (errno-like)
  */
 
-static int hcs12bdm_hcs12_flash_mass_erase(void)
+static int hcs12bdm_hcs12_flash_mass_erase(unsigned int *t)
 {
 	int i;
 	int ret;
+	unsigned long start;
 
 	if (hcs12mcu_target.flash_blocks > 1)
 	{
@@ -715,6 +716,8 @@ static int hcs12bdm_hcs12_flash_mass_erase(void)
 			return ret;
 	}
 
+	start = sys_get_ms();
+
 	for (i = 0; i < hcs12mcu_target.flash_blocks; ++ i)
 	{
 		if (hcs12mcu_target.flash_blocks > 1)
@@ -729,6 +732,9 @@ static int hcs12bdm_hcs12_flash_mass_erase(void)
 		if (ret != 0)
 			return ret;
 	}
+
+	if (t != NULL)
+		*t = (unsigned int)(sys_get_ms() - start);
 
 	return 0;
 }
@@ -862,6 +868,7 @@ static int hcs12bdm_hcs12_flash_program(uint16_t addr, uint16_t value)
 static int hcs12bdm_unsecure(void)
 {
 	int ret;
+	unsigned int t;
 
 	if (hcs12mcu_target.family < HCS12_FAMILY_S12)
 	{
@@ -885,12 +892,12 @@ static int hcs12bdm_unsecure(void)
 			printf("unsecure: EEPROM erased\n");
 	}
 
-	ret = hcs12bdm_hcs12_flash_mass_erase();
+	ret = hcs12bdm_hcs12_flash_mass_erase(&t);
 	if (ret != 0)
 		return ret;
 
 	if (options.verbose)
-		printf("unsecure: FLASH erased\n");
+		printf("unsecure: FLASH erased, time <%u ms>\n", t);
 
 	ret = hcs12bdm_init(FALSE);
 	if (ret != 0)
@@ -1151,11 +1158,13 @@ static int hcs12bdm_eeprom_erase(void)
 		return EINVAL;
 	}
 
+#if 0
 	if (hcs12mcu_target.secured && !options.force)
 	{
 		error("EEPROM erase not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
 	}
+#endif
 
 	if (agent)
 	{
@@ -1654,6 +1663,7 @@ static int hcs12bdm_flash_erase(int unsecure)
 	int agent;
 	int state;
 	int i;
+	unsigned int t;
 
 	ret = hcs12bdm_get_mode("bdm_flash_erase", &agent);
 	if (ret != 0)
@@ -1665,11 +1675,13 @@ static int hcs12bdm_flash_erase(int unsecure)
 		return EINVAL;
 	}
 
+#if 0
 	if (hcs12mcu_target.secured && !options.force)
 	{
 		error("FLASH erase not possible - MCU secured (-f option forces the operation)\n");
 		return EIO;
 	}
+#endif
 
 	if (agent)
 	{
@@ -1704,16 +1716,19 @@ static int hcs12bdm_flash_erase(int unsecure)
 				       (unsigned int)i);
 			}
 		}
+
+		if (options.verbose)
+			printf("FLASH erase: memory erased\n");
 	}
 	else
 	{
-		ret = hcs12bdm_hcs12_flash_mass_erase();
+		ret = hcs12bdm_hcs12_flash_mass_erase(&t);
 		if (ret != 0)
 			return ret;
-	}
 
-	if (options.verbose)
-		printf("FLASH erase: memory erased\n");
+		if (options.verbose)
+			printf("FLASH erase: memory erased, time <%u ms>\n", t);
+	}
 
 	if (options.verify)
 	{

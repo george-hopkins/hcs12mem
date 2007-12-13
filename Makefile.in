@@ -640,33 +640,48 @@ uninstall-am:
 
 
 dist-win32:
-	rm -f $(PACKAGE)-$(VERSION).zip
+	DOSTMP=dos.tmp; \
+	mkdir $$DOSTMP; \
+	for f in AUTHORS COPYING NEWS README; do \
+		unix2dos < @srcdir@/$$f > $$DOSTMP/$$f; \
+	done; \
+	rm -f $(PACKAGE)-$(VERSION).zip; \
 	zip -j $(PACKAGE)-$(VERSION).zip \
-		@srcdir@/AUTHORS \
-		@srcdir@/COPYING \
-		@srcdir@/NEWS \
-		@srcdir@/README \
-		@srcdir@/out.win32/release/hcs12mem.exe \
+		$$DOSTMP/AUTHORS \
+		$$DOSTMP/COPYING \
+		$$DOSTMP/NEWS \
+		$$DOSTMP/README \
+		@srcdir@/out.win32/release/$(PACKAGE).exe \
 		@srcdir@/target/*.dat \
 		@srcdir@/target/bdm/bdm.s19 \
 		@srcdir@/target/lrae/lrae.s19 \
-		@srcdir@/doc/hcs12mem.html
+		@srcdir@/doc/$(PACKAGE).html; \
+	rm -rf $$DOSTMP
 
-dist-dpkg:
-	DPKGTMP=dpkg.tmp; \
-	rm -rf $$DPKGTMP; \
+#	cp @srcdir@/COPYING $$DOSTMP/COPYING
+#	unix2dos $$DOSTMP/COPYING
+#	cp @srcdir@/NEWS $$DOSTMP/NEWS
+#	unix2dos $$DOSTMP/NEWS
+#	cp @srcdir@/README $$DOSTMP/README
+#	unix2dos $$DOSTMP/README
+
+dist-deb:
+	DEBTMP=deb.tmp; \
+	rm -rf $$DEBTMP; \
 	mkdir -p \
-		$$DPKGTMP/DEBIAN \
-		$$DPKGTMP/usr/local/bin \
-		$$DPKGTMP/usr/local/share/hcs12mem \
-		$$DPKGTMP/usr/local/share/man/man1; \
-	cp @srcdir@/packages/DEBIAN/control $$DPKGTMP/DEBIAN; \
-	cp src/hcs12mem $$DPKGTMP/usr/local/bin; \
-	cp @srcdir@/target/*.dat $$DPKGTMP/usr/local/share/hcs12mem; \
-	cp @srcdir@/target/bdm/bdm.s19 $$DPKGTMP/usr/local/share/hcs12mem; \
-	cp @srcdir@/target/lrae/lrae.s19 $$DPKGTMP/usr/local/share/hcs12mem; \
-	cp doc/hcs12mem.1 $$DPKGTMP/usr/local/share/man/man1; \
-	dpkg -b $$DPKGTMP hcs12mem.deb
+		$$DEBTMP/DEBIAN \
+		$$DEBTMP/usr/local/bin \
+		$$DEBTMP/usr/local/share/$(PACKAGE) \
+		$$DEBTMP/usr/local/share/man/man1; \
+	cp @srcdir@/packages/DEBIAN/control $$DEBTMP/DEBIAN; \
+	cp src/$(PACKAGE) $$DEBTMP/usr/local/bin; \
+	strip $$DEBTMP/usr/local/bin/$(PACKAGE); \
+	cp @srcdir@/target/*.dat $$DEBTMP/usr/local/share/$(PACKAGE); \
+	cp @srcdir@/target/bdm/bdm.s19 $$DEBTMP/usr/local/share/$(PACKAGE); \
+	cp @srcdir@/target/lrae/lrae.s19 $$DEBTMP/usr/local/share/$(PACKAGE); \
+	cp doc/$(PACKAGE).1 $$DEBTMP/usr/local/share/man/man1; \
+	dpkg -b $$DEBTMP $(PACKAGE)-$(VERSION).deb; \
+	rm -rf $$DEBTMP
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:
