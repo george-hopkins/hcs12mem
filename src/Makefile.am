@@ -24,6 +24,9 @@ AM_CFLAGS = -DHCS12MEM_DATA_DIR=\"${pkgdatadir}\"
 
 bin_PROGRAMS = hcs12mem
 
+hcs12mem_LDADD = \
+	$(DLOPEN_LIBS)
+
 hcs12mem_SOURCES = \
 	sys.c \
 	sys.h \

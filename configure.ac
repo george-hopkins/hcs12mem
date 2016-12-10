@@ -48,9 +48,6 @@ if test "$SYSTEM" != "${SYSTEM#CYGWIN}"; then
   CYGWIN="1"
   AC_SUBST(CYGWIN)
 fi
-if test "$SYSTEM" != "FreeBSD"; then
-  LDFLAGS="$LDFLAGS -ldl"
-fi
 if test "$GCC" = "yes"; then
   if test "$CYGWIN" = "1"; then
     CFLAGS="$CFLAGS -pedantic -Wall -fsigned-char"
@@ -101,6 +98,10 @@ AC_CHECK_FUNCS(getopt)
 AC_CHECK_FUNCS(getopt_long)
 AC_CHECK_FUNCS(dlfunc)
 ACX_OPTRESET
+
+dnl check libraries
+
+AC_SEARCH_LIBS([dlopen], [dl])
 
 dnl export configuration to Makefiles
 
